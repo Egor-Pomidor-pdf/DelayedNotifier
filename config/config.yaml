@@ -1,0 +1,12 @@
+env: "local"
+
+server:
+  address: ":8080"
+  
+database:
+  host: "localhost"
+  port: 5430
+  name: "notifier_db"
+  user: "notifier_user"
+  password: "notifier_password"
+  sslmode: "disable"

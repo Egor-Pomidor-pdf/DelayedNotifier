@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/external/db"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/config"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/db"
 	"github.com/joho/godotenv"
 )
 

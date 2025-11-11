@@ -8,13 +8,13 @@ import (
 )
 
 type CRUDService struct {
-	storageRepo  ports.StoreRepositoryEnterface
+	storageRepo  ports.CRUDRepositoryInterface
 
 }
 
 
 func NewCrudService(
-storageRepo ports.StoreRepositoryEnterface,
+storageRepo ports.CRUDRepositoryInterface,
 ) *CRUDService{
 	return &CRUDService{
 		storageRepo: storageRepo,

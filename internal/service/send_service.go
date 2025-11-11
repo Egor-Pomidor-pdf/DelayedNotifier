@@ -2,21 +2,33 @@ package service
 
 import (
 	"context"
-	"time"
+
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/model"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/ports"
 )
 
 type SendService struct {
-	storageRepo ports.StoreRepositoryEnterface
+	storageRepo   ports.FetcherRepository
+	puvlisherRepo ports.PublisherRepository
 }
 
-func (s * SendService) SendBatch(ctx context.Context, notifycationsToSent []*model.Notification) error {
-
+func NewSendService(
+	storageRepo ports.FetcherRepository,
+	puvlisherRepo ports.PublisherRepository,
+) *SendService {
+	return &SendService{
+		storageRepo:   storageRepo,
+		puvlisherRepo: puvlisherRepo,
+	}
 }
 
-func (s * SendService) LyfeCycle(ctx context.Context) {
-	batch, err := s.storageRepo.FetchFromDb(ctx, time.Now().Add(6*time.Hour))
+func (s *SendService) SendBatch(ctx context.Context, notifycationsToSent []*model.Notification) error {
+	
+	err := s.puvlisherRepo.SendMany(ctx, notifycationsToSent)
+	if err != nil {
+		return err
+	}
+	return nil
 
 }

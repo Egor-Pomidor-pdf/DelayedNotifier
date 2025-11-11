@@ -9,17 +9,17 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type Repository struct {
+type StoreRepository struct {
 	db *sqlx.DB
 }
 
-func NewRepository(db *sqlx.DB) *Repository {
-	return &Repository{
+func NewRepository(db *sqlx.DB) *StoreRepository {
+	return &StoreRepository{
 		db: db,
 	}
 }
 
-func (r *Repository) CreateNotify(ctx context.Context, notify model.Notification) error {
+func (r *StoreRepository) CreateNotify(ctx context.Context, notify model.Notification) error {
 	query := `INSERT INTO notifications (recipient, channel, message, scheduled_at)
 			  VALUES (:recipient, :channel, :message, :scheduled_at)`
 
@@ -31,7 +31,7 @@ func (r *Repository) CreateNotify(ctx context.Context, notify model.Notification
 	return nil
 
 }
-func (r *Repository) GetNotify(ctx context.Context, id int) (*model.Notification, error) {
+func (r *StoreRepository) GetNotify(ctx context.Context, id int) (*model.Notification, error) {
 	var (
 		recipient   string
 		channel     string
@@ -77,7 +77,7 @@ func (r *Repository) GetNotify(ctx context.Context, id int) (*model.Notification
 	}
 }
 
-func (r *Repository) FetchFromDb(ctx context.Context, needToSendTime time.Time) ([]*model.Notification, error) {
+func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.Time) ([]*model.Notification, error) {
 	query := `
 		SELECT id, recipient, channel, message, scheduled_at, status, tries, last_error
 		FROM notifications
@@ -139,7 +139,12 @@ func (r *Repository) FetchFromDb(ctx context.Context, needToSendTime time.Time) 
 }
 
 // after relise
-func (r *Repository) DeleteNotify(ctx context.Context, id int) error {
+
+func (r *StoreRepository) MarkAsSent(ctx context.Context, id int) error {
+	return nil
+}
+
+func (r *StoreRepository) DeleteNotify(ctx context.Context, id int) error {
 	query := `DELETE FROM notifications
 			  WHERE id = :id`
 

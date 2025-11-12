@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
-	"github.com/wb-go/wbf/rabbitmq"
+	rabbitpublisher "github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/rabbitProducer"
 )
 
 type RabbitRepository struct {
-	publisher *rabbitmq.Publisher
+	publisher *rabbitpublisher.Publisher
 }
 
-func NewRabbitRepository(p *rabbitmq.Publisher) *RabbitRepository {
+func NewRabbitRepository(publisher *rabbitpublisher.Publisher) *RabbitRepository {
 	return &RabbitRepository{
-		publisher: p,
+		publisher: publisher,
 	}
 }
 
@@ -25,7 +25,7 @@ func (p *RabbitRepository) SendMany(ctx context.Context, notifications []*model.
 		if err != nil {
 			return err
 		}
-		err = p.publisher.Publish(body, notification.Channel, "application/json")
+		err = p.publisher.PublishWithRetry(ctx, body, notification.Channel)
 		if err != nil {
 			return err
 		}

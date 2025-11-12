@@ -24,7 +24,7 @@ const (
 )
 
 func main() {
-	cfg, err := config.NewConfig("config/.env", "")
+	cfg, err := config.NewConfig("../config/.env", "")
 	fmt.Println(cfg)
 	if err != nil {
 		log.Fatal(err)
@@ -99,13 +99,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to fetch notifications: %v", err)
 	}
-	publisher, channel, err := rabbitpublisher.GetRabbitProducer(cfg.RabbitMQ, rabbitmqRetryStrategy)
+	publisher, err := rabbitpublisher.NewRabbitProducer(context.Background(), cfg.RabbitMQ, rabbitmqRetryStrategy)
 	if err != nil {
 		slog.Error("failed to GetRabbitProducer", slog.String("error", err.Error()))
 	}
 
-
-	defer channel.Close()
+	defer publisher.Close()
 
 	rabbitRepository := repository.NewRabbitRepository(publisher)
 	senderInterface := service.NewSendService(StoreRepository, rabbitRepository)

@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/config"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/config"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq" 
-
+	_ "github.com/lib/pq"
 )
 
 func NewPostgresDB(cfg config.DatabaseConfig) (*sqlx.DB, error) {

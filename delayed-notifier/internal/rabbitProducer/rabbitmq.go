@@ -3,7 +3,7 @@ package rabbitpublisher
 import (
 	"fmt"
 
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/config"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/config"
 	"github.com/wb-go/wbf/rabbitmq"
 	"github.com/wb-go/wbf/retry"
 )

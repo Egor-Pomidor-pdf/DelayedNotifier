@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/model"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
 )
 
 type CRUDRepositoryInterface interface {

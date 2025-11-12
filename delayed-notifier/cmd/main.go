@@ -8,13 +8,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/config"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/db"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/model"
-	rabbitpublisher "github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/rabbitProducer"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/repository"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/service"
-	"github.com/joho/godotenv"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/config"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/db"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
+	rabbitpublisher "github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/rabbitProducer"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/repository"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/service"
 	"github.com/wb-go/wbf/retry"
 )
 
@@ -25,13 +24,12 @@ const (
 )
 
 func main() {
-
-	err := godotenv.Load("../config/.env")
+	cfg, err := config.NewConfig("config/.env", "")
+	fmt.Println(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	cfg := config.MustLoad()
-	fmt.Println()
+	fmt.Println(cfg.Env)
 	setupLogger(cfg.Env)
 
 	slog.Info("starting app", slog.String("env", cfg.Env))

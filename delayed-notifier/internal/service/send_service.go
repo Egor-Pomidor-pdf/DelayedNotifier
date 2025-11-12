@@ -3,9 +3,8 @@ package service
 import (
 	"context"
 
-
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/model"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/ports"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/ports"
 )
 
 type SendService struct {

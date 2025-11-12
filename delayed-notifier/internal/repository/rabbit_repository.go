@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/internal/model"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
 	"github.com/wb-go/wbf/rabbitmq"
 )
 

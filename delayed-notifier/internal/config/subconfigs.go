@@ -1,19 +1,5 @@
 package config
 
-import (
-	"log"
-	"os"
-
-	"github.com/ilyakaznacheev/cleanenv"
-)
-
-type Config struct {
-	Env           string              `yaml:"env" env:"ENV"`
-	Database      DatabaseConfig      `yaml:"database"`
-	RabbitMQ      RabbitMQConfig      `yaml:"rabbitmq"`
-	RabbitMQRetry RabbitMQRetryConfig `yaml:"rabbitmq_retry"`
-}
-
 type DatabaseConfig struct {
 	Host     string `yaml:"host"     env:"POSTGRES_HOST"`
 	Port     int    `yaml:"port"     env:"POSTGRES_PORT"`
@@ -44,20 +30,4 @@ type ServerConfig struct {
 	Address string `yaml:"address"`
 }
 
-func MustLoad() *Config {
-	configPath := os.Getenv("CONFIG_PATH")
-	var cfg Config
-	var err error
 
-	if configPath != "" {
-		err = cleanenv.ReadConfig(configPath, &cfg)
-	} else {
-		err = cleanenv.ReadEnv(&cfg)
-	}
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	return &cfg
-
-}

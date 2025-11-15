@@ -1,10 +1,8 @@
-module github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier
+module github.com/Egor-Pomidor-pdf/DelayedNotifier/worker
 
 go 1.24.6
 
 require (
-	github.com/jmoiron/sqlx v1.4.0
-	github.com/lib/pq v1.10.9
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/wb-go/wbf v0.0.9
 )

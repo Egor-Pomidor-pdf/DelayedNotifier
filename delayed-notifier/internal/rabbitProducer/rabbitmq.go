@@ -56,16 +56,16 @@ func NewRabbitProducer(ctx context.Context, rabbitCfg config.RabbitMQConfig, rab
 		return nil, fmt.Errorf("error declaring exchange: %w", err)
 	}
 
-	// биндим очередь к exchange (routing key можно оставить пустым для direct)
-	if err := ch.QueueBind(
-		rabbitCfg.Queue,
-		"", 
-		rabbitCfg.Exchange,
-		false,
-		nil,
-	); err != nil {
-		return nil, fmt.Errorf("error binding queue '%s' to exchange: %w", rabbitCfg.Queue, err)
-	}
+	// // биндим очередь к exchange (routing key можно оставить пустым для direct)
+	// if err := ch.QueueBind(
+	// 	rabbitCfg.Queue,
+	// 	"", 
+	// 	rabbitCfg.Exchange,
+	// 	false,
+	// 	nil,
+	// ); err != nil {
+	// 	return nil, fmt.Errorf("error binding queue '%s' to exchange: %w", rabbitCfg.Queue, err)
+	// }
 
 	return &Publisher{
 		conn:       conn,
@@ -98,3 +98,4 @@ func (p *Publisher) Close() error {
 	}
 	return nil
 }
+

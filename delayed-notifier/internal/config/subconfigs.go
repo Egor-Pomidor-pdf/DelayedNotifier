@@ -26,7 +26,7 @@ type RabbitMQRetryConfig struct {
 	Backoff           float64 `yaml:"backoff" env:"RABBITMQ_RETRY_BACKOFF"`
 }
 
-type ServerConfig struct {
+type LogConfig struct {
 	Address string `yaml:"address"`
 }
 

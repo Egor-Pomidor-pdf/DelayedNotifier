@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"log/slog"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/config"
@@ -15,25 +15,29 @@ import (
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/repository"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/service"
 	"github.com/wb-go/wbf/retry"
-)
-
-const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
+	"github.com/wb-go/wbf/zlog"
 )
 
 func main() {
+	ctx := context.Background()
+
+	ctx, ctxStop := signal.NotifyContext(ctx, os.Interrupt)
+	defer ctxStop()
+
 	cfg, err := config.NewConfig("../config/.env", "")
-	fmt.Println(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(cfg.Env)
-	setupLogger(cfg.Env)
 
-	slog.Info("starting app", slog.String("env", cfg.Env))
-	slog.Debug("debug messages are enabled")
+	zlog.InitConsole()
+	err = zlog.SetLevel(cfg.Env)
+	if err != nil {
+		log.Fatal(fmt.Errorf("error setting log level to '%s': %w", cfg.Env, err))
+	}
+
+	zlog.Logger.Info().
+		Str("env", cfg.Env).
+		Msg("Start app...")
 
 	rabbitmqRetryStrategy := retry.Strategy{
 		Attempts: cfg.RabbitMQRetry.Attempts,
@@ -42,15 +46,30 @@ func main() {
 	}
 
 	db, err := db.NewPostgresDB(cfg.Database)
-
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		zlog.Logger.Fatal().
+			Err(err).
+			Msg("failed to connect to database")
 	}
-	slog.Info("Successfully connected to PostgreSQL")
-	slog.Info("working app...")
 
-	ctx := context.Background()
+	zlog.Logger.Info().Msg("Successfully connected to PostgreSQL")
+	zlog.Logger.Info().Msg("working app...")
+
 	StoreRepository := repository.NewRepository(db)
+	publisher, err := rabbitpublisher.NewRabbitProducer(ctx, cfg.RabbitMQ, rabbitmqRetryStrategy)
+	if err != nil {
+		zlog.Logger.Error().
+			Err(err).
+			Msg("failed to GetRabbitProducer")
+	}
+	defer publisher.Close()
+
+	rabbitRepository := repository.NewRabbitRepository(publisher)
+	senderInterface := service.NewSendService(StoreRepository, rabbitRepository)
+
+
+
+	// КУСОК ДЛЯ ТЕСТОВ НАЧИНАЕТСЯ
 
 	// 1
 	err = StoreRepository.CreateNotify(ctx, model.Notification{
@@ -59,9 +78,8 @@ func main() {
 		Message:     "Message 1",
 		ScheduledAt: time.Now(),
 	})
-
 	if err != nil {
-		log.Fatalf("pizda")
+		zlog.Logger.Fatal().Msg("pizda")
 	}
 
 	// 2
@@ -95,41 +113,32 @@ func main() {
 		Message:     "Message 5",
 		ScheduledAt: time.Now(),
 	})
+
 	m, err := StoreRepository.FetchFromDb(ctx, time.Now().Add(3*time.Hour))
 	if err != nil {
-		log.Fatalf("failed to fetch notifications: %v", err)
-	}
-	publisher, err := rabbitpublisher.NewRabbitProducer(context.Background(), cfg.RabbitMQ, rabbitmqRetryStrategy)
-	if err != nil {
-		slog.Error("failed to GetRabbitProducer", slog.String("error", err.Error()))
+		zlog.Logger.Fatal().
+			Err(err).
+			Msg("failed to fetch notifications")
 	}
 
-	defer publisher.Close()
-
-	rabbitRepository := repository.NewRabbitRepository(publisher)
-	senderInterface := service.NewSendService(StoreRepository, rabbitRepository)
-	err = senderInterface.SendBatch(context.Background(), m)
+	err = senderInterface.SendBatch(ctx, m)
 	if err != nil {
-		slog.Error("failed to sendBatch", slog.String("error", err.Error()))
+		zlog.Logger.Error().
+			Err(err).
+			Msg("failed to sendBatch")
 	}
+
 	for _, v := range m {
 		fmt.Println(*v)
 	}
 
-	if err := db.Close(); err != nil {
-		slog.Error("failed to close database", slog.String("error", err.Error()))
-	}
-}
+	// КУСОК ДЛЯ ТЕСТОВ ЗАКАННЧИВАЕТСЯ
 
-func setupLogger(env string) {
-	var handler slog.Handler
-	switch env {
-	case envLocal:
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	case envDev:
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	case envProd:
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	
+
+	if err := db.Close(); err != nil {
+		zlog.Logger.Error().
+			Err(err).
+			Msg("failed to close database")
 	}
-	slog.SetDefault(slog.New(handler)) // ← Устанавливаем global logger
 }

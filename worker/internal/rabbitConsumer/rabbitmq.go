@@ -74,7 +74,6 @@ func NewRabbitConsumer(ctx context.Context, rabbitCfg config.RabbitMQConfig, rab
 	}
 
 	return &Consumer{
-		Conn: conn,
 		Chan: ch,
 		Cfg:  rabbitCfg,
 	}, ch, nil

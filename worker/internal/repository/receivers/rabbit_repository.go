@@ -29,7 +29,7 @@ func NewRabbitMQReceiver(consumer *rabbitconsumer.Consumer, retryStrategy retry.
 	}
 }
 
-func (r *RabbitMQReceiver) СonsumeMsg(ctx context.Context) (chan *model.Notification, error) {
+func (r *RabbitMQReceiver) StartReceiving(ctx context.Context) (chan *model.Notification, error) {
 	go func() {
 		err := r.consumer.ConsumeWithRetry(ctx, r.messages, r.retryStrategy)
 		if err != nil {
@@ -54,6 +54,15 @@ func (r *RabbitMQReceiver) СonsumeMsg(ctx context.Context) (chan *model.Notific
 	}()
 
 	return r.objectsChan, nil
+}
+
+func (r * RabbitMQReceiver) StopReceiving() error {
+	err := r.consumer.Chan.Close()
+	if err != nil {
+		return fmt.Errorf("can not close chan %w", err)
+	}
+	close(r.messages)
+	return nil
 }
 
 func (r *RabbitMQReceiver) processMessage(delivery []byte) (*model.Notification, error) {

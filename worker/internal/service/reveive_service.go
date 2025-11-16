@@ -5,34 +5,38 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/config"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/model"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/ports"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/repository"
-	"github.com/rabbitmq/amqp091-go"
 )
 
-type ReceiveService struct {
-	consumerRepository ports.ConsumerRpositoryInterface
-	senderRepository   ports.SenderRepositoryInterface
+type NotificationService struct {
+	receiver ports.NotificationReceiver
+	channelToSender   ports.NotificationSender
+	checkPeriod time.Duration
+
 }
 
-func NewRabbitService(consumerRepository *repository.RabbitRepository, senderRepository *repository.SenderRepository) *ReceiveService {
-	return &ReceiveService{consumerRepository: consumerRepository, senderRepository: senderRepository}
+func NewRabbitService(receiver ports.NotificationReceiver, channelToSender ports.NotificationSender, checkPeriod time.Duration) *NotificationService {
+	return &NotificationService{receiver: receiver, channelToSender: channelToSender, checkPeriod: checkPeriod}
 }
 
-func (s *ReceiveService) Start(ctx context.Context, rabbitCfg config.RabbitMQConfig) error {
-	msgs, err := s.consumerRepository.СonsumeMsg(ctx)
+func (s *NotificationService) Run(ctx context.Context, rabbitCfg config.RabbitMQConfig) error {
+
+	objects, err := s.receiver.StartReceiving(ctx)
 	if err != nil {
 		return fmt.Errorf("cannot start consumer: %w", err)
 
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.worker(workerCtx, msgs, rabbitCfg)
+		s.worker(workerCtx, objects, rabbitCfg)
 	}()
 
 	select {
@@ -40,7 +44,7 @@ func (s *ReceiveService) Start(ctx context.Context, rabbitCfg config.RabbitMQCon
 		cancel()
 		wg.Wait()
 		return ctx.Err()
-	case _, ok := <-msgs:
+	case _, ok := <-objects:
 		if !ok {
 			cancel()
 			wg.Wait()
@@ -52,7 +56,7 @@ func (s *ReceiveService) Start(ctx context.Context, rabbitCfg config.RabbitMQCon
 }
 
 
-func (s * ReceiveService) worker(ctx context.Context, msgs <-chan amqp091.Delivery, rabbitCfg config.RabbitMQConfig) {
+func (s * NotificationService) worker(ctx context.Context, msgs chan *model.Notification, rabbitCfg config.RabbitMQConfig) {
 for {
 	select {
 	case <- ctx.Done():

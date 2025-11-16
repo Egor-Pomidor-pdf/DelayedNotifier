@@ -3,14 +3,15 @@ package ports
 import (
 	"context"
 
-	"github.com/rabbitmq/amqp091-go"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/model"
 )
 
 
-type ConsumerRpositoryInterface interface {
-	СonsumeMsg(ctx context.Context) (<-chan amqp091.Delivery, error)
+type NotificationReceiver interface {
+	StartReceiving(ctx context.Context) (chan *model.Notification, error)
+	StopReceiving() error
 }
 
-type SenderRepositoryInterface interface {
-
+type NotificationSender interface {
+	Send(ctx context.Context, notification *model.Notification) error
 }

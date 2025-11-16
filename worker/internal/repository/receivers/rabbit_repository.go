@@ -48,6 +48,7 @@ func (r *RabbitMQReceiver) StartReceiving(ctx context.Context) (chan *model.Noti
 				// обработка ошибок далее реализую
 			}
 			r.objectsChan <- object
+			delivery.Ack(false)
 
 		}
 

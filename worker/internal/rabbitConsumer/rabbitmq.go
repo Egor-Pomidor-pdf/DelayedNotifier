@@ -10,7 +10,6 @@ import (
 )
 
 type Consumer struct {
-	Conn *amqp091.Connection
 	Chan *amqp091.Channel
 	Cfg  config.RabbitMQConfig
 }

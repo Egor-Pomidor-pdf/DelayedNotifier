@@ -8,9 +8,9 @@ import (
 
 type Config struct {
 	Env           string              `yaml:"env" env:"ENV"`
-	// Database      DatabaseConfig      `yaml:"database"`
 	RabbitMQ      RabbitMQConfig      `yaml:"rabbitmq"`
 	RabbitMQRetry RabbitMQRetryConfig `yaml:"rabbitmq_retry"`
+	CheckPeriod   string              `yaml:"check_period" env:"CHECK_PERIOD"`
 }
 
 func NewConfig(envFilePath string, configFilePath string) (*Config, error) {
@@ -41,6 +41,7 @@ func NewConfig(envFilePath string, configFilePath string) (*Config, error) {
 	myConfig.RabbitMQ.VHost = cfg.GetString("RABBITMQ_VHOST")
 	myConfig.RabbitMQ.Exchange = cfg.GetString("RABBITMQ_EXCHANGE")
 	myConfig.RabbitMQ.Queue = cfg.GetString("RABBITMQ_QUEUE")
+	myConfig.CheckPeriod = cfg.GetString("CHECK_PERIOD")
 
 	// Postgres
 	// myConfig.Database.Host = cfg.GetString("POSTGRES_HOST")

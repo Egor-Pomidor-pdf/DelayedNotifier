@@ -5,33 +5,51 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/internaltypes"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
-	"github.com/jmoiron/sqlx"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/types"
+	"github.com/wb-go/wbf/dbpg"
+	"github.com/wb-go/wbf/retry"
+	"github.com/wb-go/wbf/zlog"
 )
 
 type StoreRepository struct {
-	db *sqlx.DB
+	db       *dbpg.DB
+	strategy retry.Strategy
 }
 
-func NewRepository(db *sqlx.DB) *StoreRepository {
+func NewRepository(db *dbpg.DB, strategy retry.Strategy) *StoreRepository {
 	return &StoreRepository{
 		db: db,
+		strategy: strategy,
+
 	}
 }
 
 func (r *StoreRepository) CreateNotify(ctx context.Context, notify model.Notification) error {
-	query := `INSERT INTO notifications (recipient, channel, message, scheduled_at)
-			  VALUES (:recipient, :channel, :message, :scheduled_at)`
-
-	_, err := r.db.NamedExecContext(ctx, query, notify)
+	query := `INSERT INTO notifications (id, recipient, channel, message, scheduled_at)
+		VALUES ($1, $2, $3, $4, $5)`
+	_, err := r.db.ExecWithRetry(
+		ctx,
+		r.strategy,
+		query,
+		notify.ID.String(),
+		notify.Recipient.String(),
+		notify.Channel.String(),
+		notify.Message,
+		notify.ScheduledAt.Format(time.RFC3339),
+	)
 	if err != nil {
 		return err
 	}
 
 	return nil
-
 }
-func (r *StoreRepository) GetNotify(ctx context.Context, id int) (*model.Notification, error) {
+
+func (r *StoreRepository) GetNotify(ctx context.Context, id types.UUID) (*model.Notification, error) {
+	query := `SELECT * FROM notifications
+			  WHERE id = :id`
+
 	var (
 		recipient   string
 		channel     string
@@ -41,54 +59,63 @@ func (r *StoreRepository) GetNotify(ctx context.Context, id int) (*model.Notific
 		tries       int
 		lastError   *string
 	)
-	query := `SELECT * FROM notifications
-			  WHERE id = :id`
 
-	params := map[string]interface{}{"id": id}
-	rows, err := r.db.NamedQueryContext(ctx, query, params)
+	rows, err := r.db.QueryRowWithRetry(ctx, r.strategy, query, id.String())
+	if err != nil {
+		return nil, fmt.Errorf("error select by id in postgres: %w", err)
+	}
+
+	err = rows.Scan(
+		&recipient,
+		&channel,
+		&message,
+		&scheduledAt,
+		&status,
+		&tries,
+		&lastError,
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	if rows.Next() {
-		err = rows.Scan(
-			&recipient,
-			&channel,
-			&message,
-			&scheduledAt,
-			&status,
-			&tries,
-			&lastError,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return &model.Notification{
-			Recipient:   recipient,
-			Channel:     channel,
-			Message:     message,
-			ScheduledAt: scheduledAt,
-			Status:      status,
-			Tries:       tries,
-			LastError:   lastError,
-		}, nil
-	} else {
-		return nil, fmt.Errorf("notification not found")
+
+	var channelValid internaltypes.NotificationChannel
+	channelValid, err = internaltypes.NotificationChannelFromString(channel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid channel in postgres: %w", err)
 	}
+
+	var recipientToValid internaltypes.Recipient
+	recipientToValid, err = internaltypes.NewSendTo(types.NewAnyText(recipient), channelValid)
+	if err != nil {
+		return nil, fmt.Errorf("invalid send_to in postgres: %w", err)
+	}
+
+	return &model.Notification{
+		Recipient:   recipientToValid,
+		Channel:     channelValid,
+		Message:     message,
+		ScheduledAt: scheduledAt,
+		Status:      status,
+		Tries:       tries,
+		LastError:   lastError,
+	}, nil
 }
 
 func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.Time) ([]*model.Notification, error) {
 	query := `
-		SELECT id, recipient, channel, message, scheduled_at, status, tries, last_error
-		FROM notifications
-		WHERE scheduled_at <= :needToSendTime AND status = 'pending' AND tries <= 3
-		ORDER BY scheduled_at
-	`
-	params := map[string]interface{}{"needToSendTime": needToSendTime}
-	rows, err := r.db.NamedQueryContext(ctx, query, params)
+    SELECT id, recipient, channel, message, scheduled_at, status, tries, last_error
+    FROM notifications
+    WHERE scheduled_at <= $1 AND status = 'pending' AND tries <= 3
+    ORDER BY scheduled_at
+`
+	rows, err := r.db.QueryWithRetry(ctx, r.strategy, query, needToSendTime)
 
 	if err != nil {
-		return nil, fmt.Errorf("error fetch", err)
+		return nil, fmt.Errorf("error fetch %w", err)
+	}
+	if rows == nil {
+		zlog.Logger.Warn().Msg("QueryWithRetry returned nil rows, returning empty result")
+		return []*model.Notification{}, nil
 	}
 	defer rows.Close()
 
@@ -96,7 +123,7 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 
 	for rows.Next() {
 		var (
-			id          int64
+			id          string
 			recipient   string
 			channel     string
 			message     string
@@ -119,10 +146,29 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
+		var channelValid internaltypes.NotificationChannel
+		channelValid, err = internaltypes.NotificationChannelFromString(channel)
+		if err != nil {
+			zlog.Logger.Error().Err(fmt.Errorf("invalid channel in postgres: %w", err))
+			continue
+		}
+
+		var recipientToValid internaltypes.Recipient
+		recipientToValid, err = internaltypes.NewSendTo(types.NewAnyText(recipient), channelValid)
+		if err != nil {
+			return nil, fmt.Errorf("invalid send_to in postgres: %w", err)
+		}
+
+		var UUID types.UUID
+		UUID, err = types.NewUUID(id)
+		if err != nil {
+			return nil, err
+		}
+
 		result = append(result, &model.Notification{
-			ID:          id,
-			Recipient:   recipient,
-			Channel:     channel,
+			ID:          &UUID,
+			Recipient:   recipientToValid,
+			Channel:     channelValid,
 			Message:     message,
 			ScheduledAt: scheduledAt,
 			Status:      status,
@@ -140,28 +186,32 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 
 // after relise
 
+func (r *StoreRepository) UpdateNotiy(ctx context.Context, newNotify model.Notification) error {
+	return nil
+}
+
 func (r *StoreRepository) MarkAsSent(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *StoreRepository) DeleteNotify(ctx context.Context, id int) error {
-	query := `DELETE FROM notifications
-			  WHERE id = :id`
+// func (r *StoreRepository) DeleteNotify(ctx context.Context, id int) error {
+// 	query := `DELETE FROM notifications
+// 			  WHERE id = :id`
 
-	params := map[string]interface{}{"id": id}
-	res, err := r.db.NamedExecContext(ctx, query, params)
-	if err != nil {
-		return err
-	}
+// 	params := map[string]interface{}{"id": id}
+// 	res, err := r.db.NamedExecContext(ctx, query, params)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// Проверяем, что хотя бы одна строка была затронута
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return fmt.Errorf("notification with id %d not found", id)
-	}
+// 	// Проверяем, что хотя бы одна строка была затронута
+// 	affected, err := res.RowsAffected()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if affected == 0 {
+// 		return fmt.Errorf("notification with id %d not found", id)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }

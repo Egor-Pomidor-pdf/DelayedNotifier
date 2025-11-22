@@ -1,13 +1,12 @@
 services:
-  postgres:
+  postgres_master:
     image: postgres:latest
     ports:
-      - "5432:5432"
+      - "5435:5432"
     env_file:
       - ../config/.env
     volumes:
-      - postgres_data:/var/lib/postgresql
-      - /Users/egortujmukov/Desktop/Go_WB/L3_DelayedNotifier/internal/migrations:/docker-entrypoint-initdb.d:ro
+      - postgres_master_data:/var/lib/postgresql
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "pg_isready", "-d", "delayed_notifier", "-U", "delayed_notifier" ]
@@ -23,6 +22,8 @@ services:
     restart: unless-stopped
     env_file:
       - ../config/.env
+    volumes:
+      - ../rabbitmq/myrabbit.conf:/etc/rabbitmq/rabbitmq.conf
     ports:
       - "15672:15672"
       - "5672:5672"
@@ -35,7 +36,7 @@ services:
       - backend
 
 volumes:
-  postgres_data:
+  postgres_master_data:
 
 
 networks:

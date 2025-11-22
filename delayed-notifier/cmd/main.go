@@ -9,11 +9,14 @@ import (
 	"time"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/config"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/db"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/internaltypes"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
 	rabbitpublisher "github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/rabbitProducer"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/repository"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/service"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/postgres"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/types"
+	"github.com/wb-go/wbf/dbpg"
 	"github.com/wb-go/wbf/retry"
 	"github.com/wb-go/wbf/zlog"
 )
@@ -44,8 +47,21 @@ func main() {
 		Delay:    time.Duration(cfg.RabbitMQRetry.DelayMilliseconds) * time.Millisecond,
 		Backoff:  cfg.RabbitMQRetry.Backoff,
 	}
+	zlog.Logger.Debug().Any("straegt", rabbitmqRetryStrategy).Msg("str")
 
-	db, err := db.NewPostgresDB(cfg.Database)
+	var postgresDB *dbpg.DB
+	err = retry.DoContext(ctx, rabbitmqRetryStrategy, func() error {
+		var postgresConnErr error
+
+		postgresDB, postgresConnErr = dbpg.New(cfg.Database.MasterDSN, cfg.Database.SlaveDSNs,
+			&dbpg.Options{
+				MaxOpenConns:    cfg.Database.MaxOpenConnections,
+				MaxIdleConns:    cfg.Database.MaxIdleConnections,
+				ConnMaxLifetime: time.Duration(cfg.Database.ConnectionMaxLifetimeSeconds) * time.Second,
+			})
+		return postgresConnErr
+	})
+
 	if err != nil {
 		zlog.Logger.Fatal().
 			Err(err).
@@ -53,9 +69,27 @@ func main() {
 	}
 
 	zlog.Logger.Info().Msg("Successfully connected to PostgreSQL")
-	zlog.Logger.Info().Msg("working app...")
 
-	StoreRepository := repository.NewRepository(db)
+	migrationsPath := "file://./db/migration"
+	// migrationsPath := "file:///app/db/migrations" //для докера
+
+	err = postgres.MigrateUp(cfg.Database.MasterDSN, migrationsPath)
+	if err != nil {
+		zlog.Logger.Fatal().Err(err).Msg("couldn't migrate postgres on master DSN")
+	}
+
+	for i, dsn := range cfg.Database.SlaveDSNs {
+		if len(dsn) == 0 {
+			continue
+		}
+		err = postgres.MigrateUp(dsn, migrationsPath)
+		if err != nil {
+			zlog.Logger.Fatal().Err(err).Int("dsn_index", i).Msg("couldn't migrate postgres on slave DSN")
+		}
+	}
+
+
+	StoreRepository := repository.NewRepository(postgresDB, rabbitmqRetryStrategy)
 	publisher, err := rabbitpublisher.NewRabbitProducer(ctx, cfg.RabbitMQ, rabbitmqRetryStrategy)
 	if err != nil {
 		zlog.Logger.Error().
@@ -67,54 +101,60 @@ func main() {
 	rabbitRepository := repository.NewRabbitRepository(publisher)
 	senderInterface := service.NewSendService(StoreRepository, rabbitRepository)
 
-
-
 	// КУСОК ДЛЯ ТЕСТОВ НАЧИНАЕТСЯ
+	zlog.Logger.Info().Msg("working app...")
 
 	// 1
+	chanNotify, err := internaltypes.NotificationChannelFromString("email")
+	if err != nil {
+		zlog.Logger.Fatal().Msg("pizda")
+	}
+	Id := types.GenerateUUID()
+
 	err = StoreRepository.CreateNotify(ctx, model.Notification{
-		Recipient:   "111user1@example.com",
-		Channel:     "email",
+		ID: &Id,
+		Recipient:   internaltypes.RecipientFromString("as@gmail.com"),
+		Channel:     chanNotify,
 		Message:     "Message 1",
 		ScheduledAt: time.Now(),
 	})
 	if err != nil {
-		zlog.Logger.Fatal().Msg("pizda")
+		zlog.Logger.Fatal().AnErr("err:", err)
 	}
 
-	// 2
-	_ = StoreRepository.CreateNotify(ctx, model.Notification{
-		Recipient:   "222user2@example.com",
-		Channel:     "telegram",
-		Message:     "Message 2",
-		ScheduledAt: time.Now(),
-	})
+	// // 2
+	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
+	// 	Recipient:   "222user2@example.com",
+	// 	Channel:     "telegram",
+	// 	Message:     "Message 2",
+	// 	ScheduledAt: time.Now(),
+	// })
 
-	// 3
-	_ = StoreRepository.CreateNotify(ctx, model.Notification{
-		Recipient:   "333user3@example.com",
-		Channel:     "email",
-		Message:     "Message 3",
-		ScheduledAt: time.Now(),
-	})
+	// // 3
+	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
+	// 	Recipient:   "333user3@example.com",
+	// 	Channel:     "email",
+	// 	Message:     "Message 3",
+	// 	ScheduledAt: time.Now(),
+	// })
 
-	// 4
-	_ = StoreRepository.CreateNotify(ctx, model.Notification{
-		Recipient:   "444user4@example.com",
-		Channel:     "telegram",
-		Message:     "Message 4",
-		ScheduledAt: time.Now(),
-	})
+	// // 4
+	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
+	// 	Recipient:   "444user4@example.com",
+	// 	Channel:     "telegram",
+	// 	Message:     "Message 4",
+	// 	ScheduledAt: time.Now(),
+	// })
 
-	// 5
-	_ = StoreRepository.CreateNotify(ctx, model.Notification{
-		Recipient:   "555user5@example.com",
-		Channel:     "email",
-		Message:     "Message 5",
-		ScheduledAt: time.Now(),
-	})
+	// // 5
+	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
+	// 	Recipient:   "555user5@example.com",
+	// 	Channel:     "email",
+	// 	Message:     "Message 5",
+	// 	ScheduledAt: time.Now(),
+	// })
 
-	m, err := StoreRepository.FetchFromDb(ctx, time.Now().Add(3*time.Hour))
+	m, err := StoreRepository.FetchFromDb(ctx, time.Now())
 	if err != nil {
 		zlog.Logger.Fatal().
 			Err(err).
@@ -134,11 +174,9 @@ func main() {
 
 	// КУСОК ДЛЯ ТЕСТОВ ЗАКАННЧИВАЕТСЯ
 
-	
-
-	if err := db.Close(); err != nil {
-		zlog.Logger.Error().
-			Err(err).
-			Msg("failed to close database")
-	}
+	// if err := postgresDB.; err != nil {
+	// 	zlog.Logger.Error().
+	// 		Err(err).
+	// 		Msg("failed to close database")
+	// }
 }

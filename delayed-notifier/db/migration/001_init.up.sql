@@ -1,5 +1,5 @@
 CREATE TABLE notifications (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     recipient TEXT NOT NULL,          -- email, telegram id и т.д.
     channel TEXT NOT NULL,            -- email, telegram
     message TEXT NOT NULL,            -- текст уведомления

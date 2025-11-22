@@ -25,7 +25,7 @@ func (p *RabbitRepository) SendMany(ctx context.Context, notifications []*model.
 		if err != nil {
 			return err
 		}
-		err = p.publisher.PublishWithRetry(ctx, body, notification.Channel)
+		err = p.publisher.PublishWithRetry(ctx, body, notification.Channel.String())
 		if err != nil {
 			return err
 		}

@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/internaltypes"
@@ -20,14 +23,13 @@ type StoreRepository struct {
 
 func NewRepository(db *dbpg.DB, strategy retry.Strategy) *StoreRepository {
 	return &StoreRepository{
-		db: db,
+		db:       db,
 		strategy: strategy,
-
 	}
 }
 
 func (r *StoreRepository) CreateNotify(ctx context.Context, notify model.Notification) error {
-	query := `INSERT INTO notifications (id, recipient, channel, message, scheduled_at)
+	query := `INSERT INTO notifier_db.public.notifications (id, recipient, channel, message, scheduled_at)
 		VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecWithRetry(
 		ctx,
@@ -47,7 +49,7 @@ func (r *StoreRepository) CreateNotify(ctx context.Context, notify model.Notific
 }
 
 func (r *StoreRepository) GetNotify(ctx context.Context, id types.UUID) (*model.Notification, error) {
-	query := `SELECT * FROM notifications
+	query := `SELECT * FROM notifier_db.public.notifications
 			  WHERE id = :id`
 
 	var (
@@ -75,7 +77,7 @@ func (r *StoreRepository) GetNotify(ctx context.Context, id types.UUID) (*model.
 		&lastError,
 	)
 	if err != nil {
-		return nil, err
+		return nil,fmt.Errorf("error scan in get: %w", err)
 	}
 
 	var channelValid internaltypes.NotificationChannel
@@ -104,7 +106,7 @@ func (r *StoreRepository) GetNotify(ctx context.Context, id types.UUID) (*model.
 func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.Time) ([]*model.Notification, error) {
 	query := `
     SELECT id, recipient, channel, message, scheduled_at, status, tries, last_error
-    FROM notifications
+    FROM notifier_db.public.notifications
     WHERE scheduled_at <= $1 AND status = 'pending' AND tries <= 3
     ORDER BY scheduled_at
 `
@@ -117,6 +119,13 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 		zlog.Logger.Warn().Msg("QueryWithRetry returned nil rows, returning empty result")
 		return []*model.Notification{}, nil
 	}
+
+	defer func(rows *sql.Rows) {
+		if err = rows.Close(); err != nil {
+			zlog.Logger.Error().Err(err).Msg("couldn't close postgres rows when fetching")
+		}
+	}(rows)
+
 	defer rows.Close()
 
 	result := []*model.Notification{}
@@ -156,13 +165,14 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 		var recipientToValid internaltypes.Recipient
 		recipientToValid, err = internaltypes.NewSendTo(types.NewAnyText(recipient), channelValid)
 		if err != nil {
-			return nil, fmt.Errorf("invalid send_to in postgres: %w", err)
+			zlog.Logger.Error().Err(fmt.Errorf("invalid recipientToValid in postgres: %w", err))
 		}
 
 		var UUID types.UUID
 		UUID, err = types.NewUUID(id)
 		if err != nil {
-			return nil, err
+			zlog.Logger.Error().Err(fmt.Errorf("invalid uuid in postgres: %w", err))
+			continue
 		}
 
 		result = append(result, &model.Notification{
@@ -184,34 +194,93 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 	return result, nil
 }
 
-// after relise
+func (r *StoreRepository) UpdateNotification(ctx context.Context, n *model.Notification) error {
+    // SQL-запрос на обновление записи по id
+    query := `
+        UPDATE notifier_db.public.notifications
+        SET recipient = $1,
+            channel = $2,
+            message = $3,
+            scheduled_at = $4,
+            status = $5,
+            tries = $6,
+            last_error = $7,
+            updated_at = now()
+        WHERE id = $8
+    `
 
-func (r *StoreRepository) UpdateNotiy(ctx context.Context, newNotify model.Notification) error {
+    // Выполняем запрос
+    res, err := r.db.ExecWithRetry(
+        ctx,
+        r.strategy,
+        query,
+        n.Recipient.String(),  // преобразуем в строку
+        n.Channel.String(),
+        n.Message,
+        n.ScheduledAt,
+        n.Status,
+        n.Tries,
+        n.LastError,
+        n.ID.String(),
+    )
+    if err != nil {
+        return fmt.Errorf("failed to update notification: %w", err)
+    }
+
+    // Проверяем, сколько строк реально было обновлено
+    rowsAffected, err := res.RowsAffected()
+    if err != nil {
+        return fmt.Errorf("couldn't get number of rows affected: %w", err)
+    }
+
+    // Если запись с таким ID не найдена
+    if rowsAffected == 0 {
+        return fmt.Errorf("notification not found")
+    }
+
+    return nil
+}
+
+func (r *StoreRepository) MarkAsSent(ctx context.Context, ids []*types.UUID) error {
+	idNumsList := make([]string, len(ids))
+	for i := range idNumsList {
+		idNumsList[i] = "$" + strconv.Itoa(i+1)
+	}
+	query := fmt.Sprintf(`UPDATE notifier_db.public.notifications SET status = 'sent' where id IN (%s)`, strings.Join(idNumsList, ","))
+
+	idStrsList := make([]any, len(ids))
+	for i, v := range ids {
+		idStrsList[i] = v.String()
+	}
+
+	_, err := r.db.ExecWithRetry(ctx, r.strategy, query, idStrsList...)
+	if err != nil {
+		return fmt.Errorf("error marking %d notifications as sent: %w", len(ids), err)
+	}
+
 	return nil
 }
 
-func (r *StoreRepository) MarkAsSent(ctx context.Context, id int) error {
+func (r *StoreRepository) DeleteNotification(ctx context.Context, id *types.UUID) error {
+	// SQL-запрос на удаление по id
+	query := `DELETE FROM notifier_db.public.notifications WHERE id = $1`
+
+	// Выполняем запрос через ExecWithRetry
+	res, err := r.db.ExecWithRetry(ctx, r.strategy, query, id.String())
+	if err != nil {
+		return fmt.Errorf("failed to delete notification: %w", err)
+	}
+
+	// Проверяем, сколько строк реально было удалено
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("couldn't get number of rows affected: %w", err)
+	}
+
+	// Если запись с таким ID не найдена
+	if rowsAffected == 0 {
+		return fmt.Errorf("notification not found")
+	}
+
 	return nil
 }
-
-// func (r *StoreRepository) DeleteNotify(ctx context.Context, id int) error {
-// 	query := `DELETE FROM notifications
-// 			  WHERE id = :id`
-
-// 	params := map[string]interface{}{"id": id}
-// 	res, err := r.db.NamedExecContext(ctx, query, params)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// Проверяем, что хотя бы одна строка была затронута
-// 	affected, err := res.RowsAffected()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if affected == 0 {
-// 		return fmt.Errorf("notification with id %d not found", id)
-// 	}
-
-// 	return nil
-// }

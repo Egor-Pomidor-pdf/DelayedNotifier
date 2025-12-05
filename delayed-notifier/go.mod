@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/wb-go/wbf v0.0.9
+	golang.org/x/sync v0.12.0
 )
 
 require (

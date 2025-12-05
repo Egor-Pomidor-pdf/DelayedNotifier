@@ -167,6 +167,19 @@ func main() {
 			Err(err).
 			Msg("failed to sendBatch")
 	}
+	uuid2, err := types.NewUUID("7c2b95c4-61c8-4b46-b030-933721931362")
+		if err != nil {
+			zlog.Logger.Fatal().Err(err).Msg("failed to create UUID")
+		}
+
+	ids := []types.UUID{uuid2,
+	}
+	err = StoreRepository.MarkAsSent(ctx, ids)
+	if err != nil {
+		zlog.Logger.Error().
+			Err(err).
+			Msg("failed to MarkAsSent")
+	}
 
 	for _, v := range m {
 		fmt.Println(*v)

@@ -34,6 +34,22 @@ services:
       retries: 3
     networks:
       - backend
+  redis:
+    image: redis:7-alpine
+    container_name: my-redis
+    restart: unless-stopped
+    env_file:
+      - ../config/.env
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - backend
+
 
 volumes:
   postgres_master_data:

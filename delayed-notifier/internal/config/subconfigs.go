@@ -19,14 +19,22 @@ type RabbitMQConfig struct {
 
 }
 
-type RabbitMQRetryConfig struct {
-	Attempts          int  `yaml:"attempts" env:"ATTEMPTS"`
-	DelayMilliseconds int  `yaml:"delay_milliseconds" env:"DELAY_MS"`
+type RedisConfig struct {
+	Host       string `yaml:"host" env:"HOST"`             // Адрес Redis (например, "localhost")
+	Port       int    `yaml:"port" env:"PORT"`             // Порт Redis (обычно 6379)
+	Password   string `yaml:"password" env:"PASSWORD"`     // Пароль, если настроена аутентификация
+	DB         int    `yaml:"db" env:"DB"`                 // Номер базы Redis (по умолчанию 0)
+	Expiration int    `yaml:"expiration" env:"EXPIRATION"` // Время жизни ключей (TTL)
+}
+
+type RetryConfig struct {
+	Attempts          int     `yaml:"attempts" env:"ATTEMPTS"`
+	DelayMilliseconds int     `yaml:"delay_milliseconds" env:"DELAY_MS"`
 	Backoff           float64 `yaml:"backoff" env:"BACKOFF"`
 }
+
+
 
 type LogConfig struct {
 	Address string `yaml:"address"`
 }
-
-

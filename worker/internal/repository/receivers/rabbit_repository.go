@@ -68,7 +68,7 @@ func (r * RabbitMQReceiver) StopReceiving() error {
 
 func (r *RabbitMQReceiver) processMessage(delivery []byte) (*model.Notification, error) {
 	var msg dto.NotificationSendBody
-
+// определиться что будем из очереди поуолчать
 	if err := json.Unmarshal(delivery, &msg); err != nil {
 		return nil, fmt.Errorf("bad message (bad json): %w", err)
 	}

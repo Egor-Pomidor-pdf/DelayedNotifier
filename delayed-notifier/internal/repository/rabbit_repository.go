@@ -51,7 +51,7 @@ func (p *RabbitRepository) SendMany(ctx context.Context, notifications []*model.
 			if err != nil {
 				DLQ.Put(notification, fmt.Errorf("couldn't send message to rabbitMQ: %w", err))
 			} else {
-				zlog.Logger.Debug().Msg("sent message in batch to rabbitMQ")
+				zlog.Logger.Debug().Msg("SendMany sent message in batch to rabbitMQ")
 			}
 
 		}

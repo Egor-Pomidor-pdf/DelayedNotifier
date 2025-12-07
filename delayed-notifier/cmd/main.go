@@ -6,53 +6,55 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/config"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/internaltypes"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/handler"
 	rabbitpublisher "github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/rabbitProducer"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/repository"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/service"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/postgres"
-	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/types"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/server"
 	"github.com/wb-go/wbf/dbpg"
+	"github.com/wb-go/wbf/redis"
 	"github.com/wb-go/wbf/retry"
 	"github.com/wb-go/wbf/zlog"
 )
 
 func main() {
+
+	// make context
 	ctx := context.Background()
-
 	ctx, ctxStop := signal.NotifyContext(ctx, os.Interrupt)
-	defer ctxStop()
 
+	// init config
 	cfg, err := config.NewConfig("../config/.env", "")
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// init logger
 	zlog.InitConsole()
 	err = zlog.SetLevel(cfg.Env)
 	if err != nil {
 		log.Fatal(fmt.Errorf("error setting log level to '%s': %w", cfg.Env, err))
 	}
-
 	zlog.Logger.Info().
 		Str("env", cfg.Env).
 		Msg("Start app...")
 
-	rabbitmqRetryStrategy := retry.Strategy{
-		Attempts: cfg.RabbitMQRetry.Attempts,
-		Delay:    time.Duration(cfg.RabbitMQRetry.DelayMilliseconds) * time.Millisecond,
-		Backoff:  cfg.RabbitMQRetry.Backoff,
-	}
-	zlog.Logger.Debug().Any("straegt", rabbitmqRetryStrategy).Msg("str")
+	// stratefies
+	rabbitmqRetryStrategy := config.MakeStrategy(cfg.RabbitMQRetry)
+	postgresRetryStrategy := config.MakeStrategy(cfg.PostgresRetry)
+	storeRepoRetryStrategy := config.MakeStrategy(cfg.StoreRepoRetry)
+	rabbitRepoRetryStrategy := config.MakeStrategy(cfg.RabbitRepoRetry)
+	redisRepoRetryStrategy := config.MakeStrategy(cfg.RedisRepoRetry)
 
+	// connect to db
 	var postgresDB *dbpg.DB
-	err = retry.DoContext(ctx, rabbitmqRetryStrategy, func() error {
+	err = retry.DoContext(ctx, postgresRetryStrategy, func() error {
 		var postgresConnErr error
-
 		postgresDB, postgresConnErr = dbpg.New(cfg.Database.MasterDSN, cfg.Database.SlaveDSNs,
 			&dbpg.Options{
 				MaxOpenConns:    cfg.Database.MaxOpenConnections,
@@ -70,9 +72,8 @@ func main() {
 
 	zlog.Logger.Info().Msg("Successfully connected to PostgreSQL")
 
+	// create migrations
 	migrationsPath := "file://./db/migration"
-	// migrationsPath := "file:///app/db/migrations" //для докера
-
 	err = postgres.MigrateUp(cfg.Database.MasterDSN, migrationsPath)
 	if err != nil {
 		zlog.Logger.Fatal().Err(err).Msg("couldn't migrate postgres on master DSN")
@@ -88,8 +89,8 @@ func main() {
 		}
 	}
 
-
-	StoreRepository := repository.NewRepository(postgresDB, rabbitmqRetryStrategy)
+	// init storeRepository and publisher
+	StoreRepository := repository.NewRepository(postgresDB, storeRepoRetryStrategy)
 	publisher, err := rabbitpublisher.NewRabbitProducer(ctx, cfg.RabbitMQ, rabbitmqRetryStrategy)
 	if err != nil {
 		zlog.Logger.Error().
@@ -98,98 +99,42 @@ func main() {
 	}
 	defer publisher.Close()
 
-	rabbitRepository := repository.NewRabbitRepository(publisher)
-	senderInterface := service.NewSendService(StoreRepository, rabbitRepository)
+	// init rabbitRepository and senderService
+	rabbitRepository := repository.NewRabbitRepository(publisher, rabbitRepoRetryStrategy)
+	senderService := service.NewSendService(StoreRepository, rabbitRepository, 5*time.Second, time.Hour)
 
-	// КУСОК ДЛЯ ТЕСТОВ НАЧИНАЕТСЯ
-	zlog.Logger.Info().Msg("working app...")
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	// 1
-	chanNotify, err := internaltypes.NotificationChannelFromString("email")
-	if err != nil {
-		zlog.Logger.Fatal().Msg("pizda")
-	}
-	Id := types.GenerateUUID()
+	go func() {
+		defer wg.Done()
+		senderService.Run(ctx)
+	}()
 
-	err = StoreRepository.CreateNotify(ctx, model.Notification{
-		ID: &Id,
-		Recipient:   internaltypes.RecipientFromString("as@gmail.com"),
-		Channel:     chanNotify,
-		Message:     "Message 1",
-		ScheduledAt: time.Now(),
-	})
-	if err != nil {
-		zlog.Logger.Fatal().AnErr("err:", err)
-	}
+	// init redis
+	redisClient := redis.New("localhost:6379", "", 0)
+	redisRepository := repository.NewRedisRepository(redisClient, redisRepoRetryStrategy, time.Hour)
 
-	// // 2
-	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
-	// 	Recipient:   "222user2@example.com",
-	// 	Channel:     "telegram",
-	// 	Message:     "Message 2",
-	// 	ScheduledAt: time.Now(),
-	// })
+	// inint crud service
+	crudService := service.NewCrudService(StoreRepository, redisRepository, nil)
+	handl := handler.NewNotifyHandler(crudService)
+	router := handler.NewRouter(handl)
 
-	// // 3
-	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
-	// 	Recipient:   "333user3@example.com",
-	// 	Channel:     "email",
-	// 	Message:     "Message 3",
-	// 	ScheduledAt: time.Now(),
-	// })
-
-	// // 4
-	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
-	// 	Recipient:   "444user4@example.com",
-	// 	Channel:     "telegram",
-	// 	Message:     "Message 4",
-	// 	ScheduledAt: time.Now(),
-	// })
-
-	// // 5
-	// _ = StoreRepository.CreateNotify(ctx, model.Notification{
-	// 	Recipient:   "555user5@example.com",
-	// 	Channel:     "email",
-	// 	Message:     "Message 5",
-	// 	ScheduledAt: time.Now(),
-	// })
-
-	m, err := StoreRepository.FetchFromDb(ctx, time.Now())
-	if err != nil {
-		zlog.Logger.Fatal().
-			Err(err).
-			Msg("failed to fetch notifications")
-	}
-
-	err = senderInterface.SendBatch(ctx, m)
+	// running server
+	httpServer := server.NewHTTPServer(router)
+	err = httpServer.GracefulRun(ctx, "localhost", 8089)
 	if err != nil {
 		zlog.Logger.Error().
 			Err(err).
-			Msg("failed to sendBatch")
+			Msg("failed GracefulRun server")
 	}
-	uuid2, err := types.NewUUID("7c2b95c4-61c8-4b46-b030-933721931362")
-		if err != nil {
-			zlog.Logger.Fatal().Err(err).Msg("failed to create UUID")
-		}
 
-	ids := []types.UUID{uuid2,
-	}
-	err = StoreRepository.MarkAsSent(ctx, ids)
 	if err != nil {
-		zlog.Logger.Error().
-			Err(err).
-			Msg("failed to MarkAsSent")
+		zlog.Logger.Error().Msg(fmt.Errorf("http server error: %w", err).Error())
 	}
 
-	for _, v := range m {
-		fmt.Println(*v)
-	}
-
-	// КУСОК ДЛЯ ТЕСТОВ ЗАКАННЧИВАЕТСЯ
-
-	// if err := postgresDB.; err != nil {
-	// 	zlog.Logger.Error().
-	// 		Err(err).
-	// 		Msg("failed to close database")
-	// }
+	zlog.Logger.Info().Msg("server gracefully stopped")
+	ctxStop()
+	wg.Wait()
+	zlog.Logger.Info().Msg("background operations gracefully stopped")
 }

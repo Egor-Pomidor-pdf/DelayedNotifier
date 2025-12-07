@@ -24,10 +24,14 @@ type SendService struct {
 func NewSendService(
 	storageRepo ports.FetcherRepository,
 	puvlisherRepo ports.PublisherRepository,
+	fetchPeriod time.Duration,
+	fetchMaxDiapason time.Duration,
 ) *SendService {
 	return &SendService{
 		storageFetcherRepo: storageRepo,
 		puvlisherRepo:      puvlisherRepo,
+		fetchPeriod:        fetchPeriod,
+		fetchMaxDiapason:   fetchMaxDiapason,
 	}
 }
 
@@ -122,7 +126,9 @@ func (s *SendService) lifeCycle(ctx context.Context) {
 		zlog.Logger.Error().Err(fmt.Errorf("failed to fetch batch for sending: %w", err)).Msg("error in SenderService loop")
 		return
 	}
-	zlog.Logger.Info().Int("amount", len(batch)).Stringer("max_publication_at", dateTimeForSent).Msg("fetched batch")
+	if len(batch) > 0 {
+		zlog.Logger.Info().Int("amount", len(batch)).Stringer("max_publication_at", dateTimeForSent).Msg("fetched batch")
+	}
 	err = s.SendBatch(ctx, batch)
 	if err != nil {
 		zlog.Logger.Error().Err(fmt.Errorf("failed to send batch: %w", err)).Msg("error in SenderService loop")

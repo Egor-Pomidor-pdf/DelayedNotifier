@@ -28,7 +28,7 @@ func NewRepository(db *dbpg.DB, strategy retry.Strategy) *StoreRepository {
 	}
 }
 
-func (r *StoreRepository) CreateNotify(ctx context.Context, notify model.Notification) error {
+func (r *StoreRepository) CreateNotify(ctx context.Context, notify *model.Notification) error {
 	query := `INSERT INTO notifier_db.public.notifications (id, recipient, channel, message, scheduled_at)
 		VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecWithRetry(
@@ -242,6 +242,12 @@ func (r *StoreRepository) UpdateNotification(ctx context.Context, n *model.Notif
 }
 
 func (r *StoreRepository) MarkAsSent(ctx context.Context, ids []*types.UUID) error {
+	if len(ids) == 0 {
+        // Нечего обновлять — выходим без ошибки
+        return nil
+    }
+
+
 	idNumsList := make([]string, len(ids))
 	for i := range idNumsList {
 		idNumsList[i] = "$" + strconv.Itoa(i+1)
@@ -261,7 +267,7 @@ func (r *StoreRepository) MarkAsSent(ctx context.Context, ids []*types.UUID) err
 	return nil
 }
 
-func (r *StoreRepository) DeleteNotification(ctx context.Context, id *types.UUID) error {
+func (r *StoreRepository) DeleteNotification(ctx context.Context, id types.UUID) error {
 	// SQL-запрос на удаление по id
 	query := `DELETE FROM notifier_db.public.notifications WHERE id = $1`
 

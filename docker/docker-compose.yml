@@ -1,4 +1,28 @@
 services:
+  delayed_notifier:
+    build:
+      context: ../delayed-notifier # путь до папки где Dockerfile и go.mod
+      dockerfile: Dockerfile
+    image: delayed_notifier:latest
+    restart: unless-stopped
+    # entrypoint: "sleep 1h"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_master:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
+    env_file:
+      - ../config/.env
+    ports:
+      - "8089:8089"
+    networks:
+      - backend
   postgres_master:
     image: postgres:latest
     ports:
@@ -50,9 +74,59 @@ services:
     networks:
       - backend
 
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    ports:
+      - "9080:9080"
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../logsAndMetrics/promtail-config.yaml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    privileged: true
+    networks:
+      - backend
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ../logsAndMetrics/loki-config.yaml:/etc/loki/local-config.yaml
+    networks:
+      - backend
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../logsAndMetrics/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheusdata:/prometheus
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ../logsAndMetrics/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - grafanadata:/var/lib/grafana
+    networks:
+      - backend
 
 volumes:
   postgres_master_data:
+  grafanadata:
+  prometheusdata:
 
 
 networks:

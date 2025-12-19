@@ -13,6 +13,7 @@ type CRUDStoreRepositoryInterface interface {
 	GetNotify(ctx context.Context, id types.UUID) (*model.Notification, error)
 	FetchFromDb(ctx context.Context, needToSendTime time.Time) ([]*model.Notification, error)
 	DeleteNotification(ctx context.Context, id types.UUID) error
+	GetAllNotifies(ctx context.Context) ([]*model.Notification, error)
 }
 
 type CRUDRedisRepositoryInterface interface {
@@ -25,4 +26,5 @@ type CRUDServiceInterface interface {
 	CreateNotification(ctx context.Context, model *model.Notification) (*model.Notification, error)
 	GetNotification(ctx context.Context, id types.UUID) (*model.Notification, error) 
 	DeleteNotification(ctx context.Context, id types.UUID) error
+	GetAllNotifications(ctx context.Context) ([]*model.Notification, error)
 }

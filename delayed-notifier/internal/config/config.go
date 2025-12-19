@@ -13,6 +13,7 @@ type Config struct {
 	Database        PostgresConfig `env-prefix:"POSTGRES_"`
 	Redis           RedisConfig    `env-prefix:"REDIS_"`
 	RabbitMQ        RabbitMQConfig `env-prefix:"RABBITMQ_"`
+	Server          ServerConfig   `env-prefix:"SERVER_"`
 	RabbitMQRetry   RetryConfig    `env-prefix:"RETRY_RABBITMQ_"`
 	PostgresRetry   RetryConfig    `env-prefix:"RETRY_POSTGRES_"`
 	StoreRepoRetry  RetryConfig    `env-prefix:"RETRY_STORE_REPO_"`
@@ -63,6 +64,9 @@ func NewConfig(envFilePath string, configFilePath string) (*Config, error) {
 	myConfig.Redis.DB = cfg.GetInt("DELAYED_NOTIFIER_REDIS_DB")
 	myConfig.Redis.Expiration = cfg.GetInt("DELAYED_NOTIFIER_REDIS_EXPIRATION")
 
+	myConfig.Server.Host = cfg.GetString("DELAYED_NOTIFIER_SERVER_HOST")
+	myConfig.Server.Port = cfg.GetInt("DELAYED_NOTIFIER_SERVER_PORT")
+
 	// Retry
 	// RabbitMQ retry
 	myConfig.RabbitMQRetry.Attempts = cfg.GetInt("DELAYED_NOTIFIER_RETRY_RABBITMQ_RETRY_ATTEMPTS")
@@ -97,7 +101,5 @@ func MakeStrategy(c RetryConfig) retry.Strategy {
 		Attempts: c.Attempts,
 		Delay:    time.Duration(c.DelayMilliseconds) * time.Millisecond,
 		Backoff:  c.Backoff,
-		// если в retry.Strategy есть поле MaxDelay, можно использовать:
-		// MaxDelay: time.Duration(c.MaxDelayMs) * time.Millisecond,
 	}
 }

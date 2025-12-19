@@ -103,6 +103,81 @@ func (r *StoreRepository) GetNotify(ctx context.Context, id types.UUID) (*model.
 	}, nil
 }
 
+func (r *StoreRepository) GetAllNotifies(ctx context.Context) ([]*model.Notification, error) {
+	query := `SELECT 
+                id,
+                recipient,
+                channel,
+                message,
+                scheduled_at,
+                status,
+                tries,
+                last_error
+              FROM notifier_db.public.notifications
+              ORDER BY scheduled_at DESC`
+
+	rows, err := r.db.QueryWithRetry(ctx, r.strategy, query)
+	if err != nil {
+		return nil, fmt.Errorf("error selecting all notifications from postgres: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*model.Notification
+
+	for rows.Next() {
+		var (
+			id          string
+			recipient   string
+			channel     string
+			message     string
+			scheduledAt time.Time
+			status      string
+			tries       int
+			lastError   *string
+		)
+
+		if err := rows.Scan(
+			&id,
+			&recipient,
+			&channel,
+			&message,
+			&scheduledAt,
+			&status,
+			&tries,
+			&lastError,
+		); err != nil {
+			return nil, fmt.Errorf("error scan in GetAllNotifies: %w", err)
+		}
+
+		uuid, _ := types.NewUUID(id)
+
+
+		channelValid, _ := internaltypes.NotificationChannelFromString(channel)
+		
+
+		recipientValid, _ := internaltypes.NewSendTo(types.NewAnyText(recipient), channelValid)
+		
+
+		result = append(result, &model.Notification{
+			ID:          &uuid,
+			Recipient:   recipientValid,
+			Channel:     channelValid,
+			Message:     message,
+			ScheduledAt: scheduledAt,
+			Status:      status,
+			Tries:       tries,
+			LastError:   lastError,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error in GetAllNotifies: %w", err)
+	}
+
+	return result, nil
+}
+
+
 func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.Time) ([]*model.Notification, error) {
 	query := `
     SELECT id, recipient, channel, message, scheduled_at, status, tries, last_error
@@ -163,10 +238,7 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 		}
 
 		var recipientToValid internaltypes.Recipient
-		recipientToValid, err = internaltypes.NewSendTo(types.NewAnyText(recipient), channelValid)
-		if err != nil {
-			zlog.Logger.Error().Err(fmt.Errorf("invalid recipientToValid in postgres: %w", err))
-		}
+		recipientToValid = internaltypes.RecipientFromString(recipient)
 
 		var UUID types.UUID
 		UUID, err = types.NewUUID(id)
@@ -190,6 +262,7 @@ func (r *StoreRepository) FetchFromDb(ctx context.Context, needToSendTime time.T
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error after scanning rows: %w", err)
 	}
+
 
 	return result, nil
 }

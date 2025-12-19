@@ -27,12 +27,17 @@ type RedisConfig struct {
 	Expiration int    `yaml:"expiration" env:"EXPIRATION"` // Время жизни ключей (TTL)
 }
 
+type ServerConfig struct {
+	Host string `yaml:"host"` // например, "localhost"
+	Port int    `yaml:"port"` // например, 8080
+}
+
+
 type RetryConfig struct {
 	Attempts          int     `yaml:"attempts" env:"ATTEMPTS"`
 	DelayMilliseconds int     `yaml:"delay_milliseconds" env:"DELAY_MS"`
 	Backoff           float64 `yaml:"backoff" env:"BACKOFF"`
 }
-
 
 
 type LogConfig struct {

@@ -2,15 +2,18 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/wb-go/wbf/config"
+	"github.com/wb-go/wbf/retry"
 )
 
 type Config struct {
-	Env           string              `yaml:"env" env:"ENV"`
-	RabbitMQ      RabbitMQConfig      `yaml:"rabbitmq"`
-	RabbitMQRetry RabbitMQRetryConfig `yaml:"rabbitmq_retry"`
-	CheckPeriod   string              `yaml:"check_period" env:"CHECK_PERIOD"`
+	Env           string        
+	RabbitMQ      RabbitMQConfig 
+	ConsumerRetry RetryConfig    
+	ReceiverRetry RetryConfig   
+	CheckPeriod   string         
 }
 
 func NewConfig(envFilePath string, configFilePath string) (*Config, error) {
@@ -34,26 +37,34 @@ func NewConfig(envFilePath string, configFilePath string) (*Config, error) {
 	myConfig.Env = cfg.GetString("ENV")
 
 	// RabbitMQ
-	myConfig.RabbitMQ.User = cfg.GetString("RABBITMQ_USER")
-	myConfig.RabbitMQ.Password = cfg.GetString("RABBITMQ_PASSWORD")
-	myConfig.RabbitMQ.Host = cfg.GetString("RABBITMQ_HOST")
-	myConfig.RabbitMQ.Port = cfg.GetInt("RABBITMQ_PORT")
-	myConfig.RabbitMQ.VHost = cfg.GetString("RABBITMQ_VHOST")
-	myConfig.RabbitMQ.Exchange = cfg.GetString("RABBITMQ_EXCHANGE")
-	myConfig.RabbitMQ.Queue = cfg.GetString("RABBITMQ_QUEUE")
+	myConfig.RabbitMQ.User = cfg.GetString("DELAYED_NOTIFIER_RABBITMQ_USER")
+	myConfig.RabbitMQ.Password = cfg.GetString("DELAYED_NOTIFIER_RABBITMQ_PASSWORD")
+	myConfig.RabbitMQ.Host = cfg.GetString("DELAYED_NOTIFIER_RABBITMQ_HOST")
+	myConfig.RabbitMQ.Port = cfg.GetInt("DELAYED_NOTIFIER_RABBITMQ_PORT")
+	myConfig.RabbitMQ.VHost = cfg.GetString("DELAYED_NOTIFIER_RABBITMQ_VHOST")
+	myConfig.RabbitMQ.Exchange = cfg.GetString("DELAYED_NOTIFIER_RABBITMQ_EXCHANGE")
+	myConfig.RabbitMQ.Queue = cfg.GetString("DELAYED_NOTIFIER_RABBITMQ_QUEUE")
 	myConfig.CheckPeriod = cfg.GetString("CHECK_PERIOD")
 
-	// Postgres
-	// myConfig.Database.Host = cfg.GetString("POSTGRES_HOST")
-	// myConfig.Database.Port = cfg.GetInt("POSTGRES_PORT")
-	// myConfig.Database.Name = cfg.GetString("POSTGRES_DB")
-	// myConfig.Database.User = cfg.GetString("POSTGRES_USER")
-	// myConfig.Database.Password = cfg.GetString("POSTGRES_PASSWORD")
-	// myConfig.Database.SSLMode = cfg.GetString("POSTGRES_SSLMODE")
-
 	// Retry
-	myConfig.RabbitMQRetry.Attempts = cfg.GetInt("RABBITMQ_RETRY_ATTEMPTS")
-	myConfig.RabbitMQRetry.DelayMilliseconds = cfg.GetInt("RABBITMQ_RETRY_DELAY_MS")
-	myConfig.RabbitMQRetry.Backoff = cfg.GetFloat64("RABBITMQ_RETRY_BACKOFF")
+	// Consumer retry
+	myConfig.ConsumerRetry.Attempts = cfg.GetInt("DELAYED_NOTIFIER_RETRY_CONSUMER_ATTEMPTS")
+	myConfig.ConsumerRetry.DelayMilliseconds = cfg.GetInt("DELAYED_NOTIFIER_RETRY_CONSUMER_DELAY_MS")
+	myConfig.ConsumerRetry.Backoff = cfg.GetFloat64("DELAYED_NOTIFIER_RETRY_CONSUMER_BACKOFF")
+
+	// Receiver retry
+	myConfig.ReceiverRetry.Attempts = cfg.GetInt("DELAYED_NOTIFIER_RETRY_RECEIVER_ATTEMPTS")
+	myConfig.ReceiverRetry.DelayMilliseconds = cfg.GetInt("DELAYED_NOTIFIER_RETRY_RECEIVER_DELAY_MS")
+	myConfig.ReceiverRetry.Backoff = cfg.GetFloat64("DELAYED_NOTIFIER_RETRY_RECEIVER_BACKOFF")
+
 	return myConfig, nil
 }
+
+func MakeStrategy(c RetryConfig) retry.Strategy {
+	return retry.Strategy{
+		Attempts: c.Attempts,
+		Delay:    time.Duration(c.DelayMilliseconds) * time.Millisecond,
+		Backoff:  c.Backoff,
+	}
+}
+

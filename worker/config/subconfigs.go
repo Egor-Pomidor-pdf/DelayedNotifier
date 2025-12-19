@@ -1,14 +1,5 @@
 package config
 
-// type DatabaseConfig struct {
-// 	Host     string `yaml:"host"     env:"POSTGRES_HOST"`
-// 	Port     int    `yaml:"port"     env:"POSTGRES_PORT"`
-// 	Name     string `yaml:"name"     env:"POSTGRES_DB"`
-// 	User     string `yaml:"user"     env:"POSTGRES_USER"`
-// 	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
-// 	SSLMode  string `yaml:"sslmode" env:"POSTGRES_SSLMODE"`
-// }
-
 type RabbitMQConfig struct {
 	User     string `yaml:"user" env:"RABBITMQ_USER"`         // Логин для подключения к RabbitMQ
 	Password string `yaml:"password" env:"RABBITMQ_PASSWORD"` // Пароль для подключения
@@ -21,10 +12,10 @@ type RabbitMQConfig struct {
 
 }
 
-type RabbitMQRetryConfig struct {
-	Attempts          int  `yaml:"attempts" env:"RABBITMQ_RETRY_ATTEMPTS"`
-	DelayMilliseconds int  `yaml:"delay_milliseconds" env:"RABBITMQ_RETRY_DELAY_MS"`
-	Backoff           float64 `yaml:"backoff" env:"RABBITMQ_RETRY_BACKOFF"`
+type RetryConfig struct {
+	Attempts          int     `yaml:"attempts" env:"ATTEMPTS"`
+	DelayMilliseconds int     `yaml:"delay_milliseconds" env:"DELAY_MS"`
+	Backoff           float64 `yaml:"backoff" env:"BACKOFF"`
 }
 
 

@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/dto"
@@ -43,7 +42,12 @@ func (p *RabbitRepository) SendMany(ctx context.Context, notifications []*model.
 
 	go func() {
 		for _, notification := range notifications {
-			body, err := json.Marshal(notification)
+
+			body, err := dto.ToSendFromDTO(notification)
+
+			if err != nil {
+				zlog.Logger.Err(err).Msg("dont recreate in dto")
+			}
 			if err != nil {
 				DLQ.Put(notification, fmt.Errorf("couldn't send message to rabbitMQ: %w", err))
 			}

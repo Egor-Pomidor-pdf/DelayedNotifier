@@ -52,6 +52,7 @@ func (s *CRUDService) CreateNotification(ctx context.Context, notify *model.Noti
 		}(notify)
 	}
 	zlog.Logger.Info().Msg("success create notification")
+
 	return notify, nil
 }
 
@@ -69,6 +70,20 @@ func (s *CRUDService) GetNotification(ctx context.Context, id types.UUID) (*mode
 	}
 	zlog.Logger.Info().Msg("success get notification")
 	return result, err
+}
+
+func (s *CRUDService) GetAllNotifications(ctx context.Context) ([]*model.Notification, error) {
+	// Если нет кеша для списка, просто читаем из хранилища.
+	result, err := s.storageRepo.GetAllNotifies(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting all notifications from storage: %w", err)
+	}
+
+	zlog.Logger.Info().
+		Int("count", len(result)).
+		Msg("success get all notifications")
+
+	return result, nil
 }
 
 func (s *CRUDService) DeleteNotification(ctx context.Context, id types.UUID) error {

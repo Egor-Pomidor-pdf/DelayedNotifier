@@ -6,6 +6,7 @@ import (
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/internaltypes"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
+	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/pkg/types"
 )
 
 type NotificationCreate struct {
@@ -17,15 +18,16 @@ type NotificationCreate struct {
 
 func (b NotificationCreate) ToEnity() (*model.Notification, error) {
 	var err error
-	rec := internaltypes.RecipientFromString(b.Recipient)
-	if err != nil {
-		return nil, fmt.Errorf("incorrect 'recipment' '%s': %w", b.ScheduledAt, err)
-	}
+	
 
 	var channel internaltypes.NotificationChannel
 	channel, err = internaltypes.NotificationChannelFromString(b.Channel)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect 'channel' '%s': %w", b.Channel, err)
+	}
+	rec, err := internaltypes.NewSendTo(types.NewAnyText(b.Recipient), channel)
+	if err != nil {
+		return nil, fmt.Errorf("incorrect 'recipment' '%s': %w", b.ScheduledAt, err)
 	}
 	shedAt, err := time.Parse(time.RFC3339, b.ScheduledAt)
 	if err != nil {

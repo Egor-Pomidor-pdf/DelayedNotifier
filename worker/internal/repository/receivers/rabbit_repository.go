@@ -2,7 +2,6 @@ package receivers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -11,6 +10,7 @@ import (
 	rabbitconsumer "github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/rabbitConsumer"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/wb-go/wbf/retry"
+
 )
 
 type RabbitMQReceiver struct {
@@ -67,13 +67,9 @@ func (r * RabbitMQReceiver) StopReceiving() error {
 }
 
 func (r *RabbitMQReceiver) processMessage(delivery []byte) (*model.Notification, error) {
-	var msg dto.NotificationSendBody
 // определиться что будем из очереди поуолчать
-	if err := json.Unmarshal(delivery, &msg); err != nil {
-		return nil, fmt.Errorf("bad message (bad json): %w", err)
-	}
+	notification, err := dto.ToModelFromSend(delivery)
 
-	notification, err := dto.NotificationModelFromSendDTO(&msg)
 	if err != nil {
 		return nil, fmt.Errorf("bad message (could't convert to model): %w", err)
 	}

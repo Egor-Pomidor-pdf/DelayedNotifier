@@ -8,6 +8,7 @@ import (
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/dto"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/model"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/delayed-notifier/internal/ports"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/wb-go/wbf/ginext"
 )
 
@@ -35,7 +36,7 @@ func (h *NotifyHandler) CreateNotification(c *ginext.Context) {
 		return
 	}
 
-	_, err = h.crudService.CreateNotification(context.Background(), createModel)
+	notif, err := h.crudService.CreateNotification(context.Background(), createModel)
 	if err != nil {
 		c.AbortWithStatusJSON(
 			http.StatusConflict,
@@ -43,7 +44,9 @@ func (h *NotifyHandler) CreateNotification(c *ginext.Context) {
 		)
 		return
 	}
-	c.JSON(http.StatusCreated, dto.ToFullFromModelNotification(createModel))
+	
+
+	c.JSON(http.StatusCreated, dto.ToFullFromModelNotification(notif))
 }
 
 func (h *NotifyHandler) GetNotification(c *ginext.Context) {
@@ -66,14 +69,6 @@ func (h *NotifyHandler) GetNotification(c *ginext.Context) {
 	}
 	notification, err := h.crudService.GetNotification(context.Background(), id)
 	if err != nil {
-		// if errors.Is(err, internalerrors.ErrNotificationNotFound) {
-		// 	c.AbortWithStatusJSON(
-		// 		http.StatusNotFound,
-		// 		gin.H{"error": "notification not found"},
-		// 	)
-		// 	return
-		// }
-
 		c.AbortWithStatusJSON(
 			http.StatusInternalServerError,
 			ginext.H{"error": fmt.Sprintf("couldn't get notification: %s", err.Error())},
@@ -82,6 +77,23 @@ func (h *NotifyHandler) GetNotification(c *ginext.Context) {
 	}
 
 	c.JSON(http.StatusOK, notification)
+}
+func (h *NotifyHandler) GetAllNotifications(c *ginext.Context) {
+	notifications, err := h.crudService.GetAllNotifications(c.Request.Context())
+	if err != nil {
+		c.AbortWithStatusJSON(
+			http.StatusInternalServerError,
+			ginext.H{"error": fmt.Sprintf("couldn't get notifications: %s", err.Error())},
+		)
+		return
+	}
+
+	dtoNotifications := make([]*dto.NotificationFull, len(notifications))
+	for i, n := range notifications {
+		dtoNotifications[i] =  dto.ToFullFromModelNotification(n)
+	}
+
+	c.JSON(http.StatusOK, dtoNotifications)
 }
 
 func (h *NotifyHandler) DeleteNotification(c *ginext.Context) {
@@ -105,14 +117,6 @@ func (h *NotifyHandler) DeleteNotification(c *ginext.Context) {
 
 	err = h.crudService.DeleteNotification(context.Background(), id)
 	if err != nil {
-		// if errors.Is(err, internalerrors.ErrNotificationNotFound) {
-		// 	c.AbortWithStatusJSON(
-		// 		http.StatusNotFound,
-		// 		gin.H{"error": "notification not found"},
-		// 	)
-		// 	return
-		// }
-
 		c.AbortWithStatusJSON(
 			http.StatusInternalServerError,
 			ginext.H{"error": fmt.Sprintf("couldn't delete notification: %s", err.Error())},
@@ -121,4 +125,10 @@ func (h *NotifyHandler) DeleteNotification(c *ginext.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+
+func (h *NotifyHandler) Metrics(c *ginext.Context) {
+	promhttp.Handler().ServeHTTP(c.Writer, c.Request)
+	return 
 }

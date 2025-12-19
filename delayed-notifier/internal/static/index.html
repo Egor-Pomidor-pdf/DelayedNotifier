@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Delayed Notifier UI</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-soft: #111827;
+      --card: #020617;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59,130,246,0.15);
+      --accent-danger: #ef4444;
+      --accent-success: #22c55e;
+      --border: #1e293b;
+      --text: #e5e7eb;
+      --text-soft: #9ca3af;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: radial-gradient(circle at top, #1e293b 0, #020617 50%, #000 100%);
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-soft);
+    }
+
+    .env {
+      font-size: 12px;
+      color: var(--text-soft);
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      background: rgba(15,23,42,.7);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .card {
+      border-radius: var(--radius-lg);
+      background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.98));
+      border: 1px solid rgba(148,163,184,0.15);
+      box-shadow: 0 18px 45px rgba(15,23,42,0.8);
+      padding: 18px 18px 14px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    form { margin: 0; }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 9px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(148,163,184,0.3);
+      background: rgba(15,23,42,0.9);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: #6b7280;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.5);
+      background: #020617;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .row .field {
+      flex: 1 1 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 13px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s, transform .05s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      color: white;
+      box-shadow: 0 12px 30px rgba(37,99,235,0.45);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #1d4ed8, #4338ca);
+      transform: translateY(-0.5px);
+    }
+
+    .btn-secondary {
+      background: rgba(15,23,42,0.9);
+      color: var(--text-soft);
+      border: 1px solid rgba(148,163,184,0.3);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(30,64,175,0.4);
+      color: #e5e7eb;
+    }
+
+    .btn-sm {
+      padding: 4px 9px;
+      font-size: 12px;
+      border-radius: 999px;
+    }
+
+    .btn-danger {
+      background: rgba(239,68,68,0.1);
+      color: #fecaca;
+      border-color: rgba(239,68,68,0.5);
+    }
+
+    .status {
+      margin-top: 8px;
+      min-height: 18px;
+      font-size: 12px;
+    }
+
+    .status span {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.3);
+      background: rgba(15,23,42,0.9);
+    }
+
+    .status-ok   { border-color: rgba(34,197,94,0.6); color: #bbf7d0; }
+    .status-err  { border-color: rgba(239,68,68,0.6); color: #fecaca; }
+    .status-info { border-color: rgba(59,130,246,0.6); color: #bfdbfe; }
+
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .search-input {
+      max-width: 260px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      padding: 7px 8px;
+      border-bottom: 1px solid rgba(30,64,175,0.3);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      font-weight: 500;
+      color: var(--text-soft);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      background: rgba(15,23,42,0.9);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody tr:nth-child(even) {
+      background: rgba(15,23,42,0.4);
+    }
+
+    tbody tr:hover {
+      background: rgba(37,99,235,0.45);
+    }
+
+    .scroll {
+      max-height: 360px;
+      overflow: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(30,64,175,0.5);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 11px;
+    }
+
+    .tag-channel {
+      background: rgba(59,130,246,0.15);
+      color: #bfdbfe;
+    }
+
+    .tag-status-pending {
+      background: rgba(245,158,11,0.12);
+      color: #fed7aa;
+    }
+
+    .tag-status-sent {
+      background: rgba(34,197,94,0.15);
+      color: #bbf7d0;
+    }
+
+    .tag-status-failed {
+      background: rgba(239,68,68,0.15);
+      color: #fecaca;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .id-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+    }
+
+    .ellipsis {
+      max-width: 240px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="title-block">
+      <h1>Delayed Notifier <span class="pill">UI</span></h1>
+      <div class="subtitle">Создание, просмотр и удаление уведомлений.</div>
+    </div>
+    <div class="env">BACKEND: <span id="backendUrl">http://localhost:8089</span></div>
+  </div>
+
+  <script>
+    const API_BASE_URL = "http://localhost:8089"; // поменяй, если сервер на другом порту
+    document.getElementById("backendUrl").textContent = API_BASE_URL;
+  </script>
+
+  <div class="grid">
+    <!-- Форма создания / удаления -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Создать уведомление</div>
+          <div class="card-subtitle">POST /notify</div>
+        </div>
+      </div>
+
+      <form id="create-form">
+        <div class="field">
+          <label for="recipient">Получатель (recipient)</label>
+          <input id="recipient" type="text" required placeholder="email, telegram id и т.д." />
+        </div>
+
+        <div class="field">
+          <label for="channel">Канал (channel)</label>
+          <input id="channel" type="text" required placeholder="email / telegram" />
+        </div>
+
+        <div class="field">
+          <label for="message">Сообщение (message)</label>
+          <textarea id="message" required></textarea>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="scheduled_date">Дата (scheduled_at)</label>
+            <input id="scheduled_date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="scheduled_time">Время (локальное)</label>
+            <input id="scheduled_time" type="time" required />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Создать</button>
+      </form>
+
+      <div class="status" id="create-status"></div>
+
+      <hr style="border-color: rgba(148,163,184,0.2); margin: 14px 0;" />
+
+      <div class="card-header" style="margin-bottom: 6px;">
+        <div>
+          <div class="card-title" style="font-size: 14px;">Удалить уведомление</div>
+          <div class="card-subtitle">DELETE /notify/:id</div>
+        </div>
+      </div>
+
+      <form id="delete-form">
+        <div class="field">
+          <label for="delete-id">ID</label>
+          <input id="delete-id" type="text" required />
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm btn-danger">Удалить</button>
+      </form>
+
+      <div class="status" id="delete-status"></div>
+    </div>
+
+    <!-- Список уведомлений -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Уведомления (из БД)</div>
+          <div class="card-subtitle">GET /notify (обновляется при перезагрузке и по кнопке)</div>
+        </div>
+        <button id="refresh-btn" class="btn btn-secondary btn-sm">Обновить</button>
+      </div>
+
+      <div class="table-toolbar">
+        <input id="search" class="search-input" type="text" placeholder="[translate:Поиск по id, получателю, каналу, статусу...]" />
+      </div>
+
+      <div class="scroll">
+        <table>
+          <thead>
+          <tr>
+            <th>ID</th>
+            <th>Recipient</th>
+            <th>Channel</th>
+            <th>Message</th>
+            <th>Scheduled at</th>
+            <th>Status</th>
+            <th>Tries</th>
+          </tr>
+          </thead>
+          <tbody id="table-body">
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <span id="page-info">0 / 0</span>
+        <button id="prev-page" class="btn btn-secondary btn-sm">&lt;</button>
+        <button id="next-page" class="btn btn-secondary btn-sm">&gt;</button>
+      </div>
+
+      <div class="status" id="list-status"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== helpers =====
+  function setStatus(el, text, type) {
+    if (!text) {
+      el.innerHTML = "";
+      return;
+    }
+    let cls = "status-info";
+    if (type === "ok") cls = "status-ok";
+    if (type === "err") cls = "status-err";
+    el.innerHTML = `<span class="${cls}">${text}</span>`;
+  }
+
+  function statusTag(status) {
+    const s = (status || "").toLowerCase();
+    if (s === "sent") return '<span class="tag tag-status-sent">sent</span>';
+    if (s === "failed") return '<span class="tag tag-status-failed">failed</span>';
+    return `<span class="tag tag-status-pending">${status || "pending"}</span>`;
+  }
+
+  // ===== состояние таблицы =====
+  let notifications = [];   // все из БД
+  let filtered = [];        // после поиска
+  let currentPage = 1;
+  const pageSize = 10;
+
+  const tableBody   = document.getElementById("table-body");
+  const pageInfo    = document.getElementById("page-info");
+  const listStatus  = document.getElementById("list-status");
+  const searchInput = document.getElementById("search");
+
+  function applyFilter() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) {
+      filtered = notifications.slice();
+    } else {
+      filtered = notifications.filter(n => {
+        const id  = (n.id || "").toLowerCase();
+        const rec = (n.recipient || "").toLowerCase();
+        const ch  = (n.channel || "").toLowerCase();
+        const st  = (n.status || "").toLowerCase();
+        const msg = (n.message || "").toLowerCase();
+        return (
+          id.includes(q) ||
+          rec.includes(q) ||
+          ch.includes(q) ||
+          st.includes(q) ||
+          msg.includes(q)
+        );
+      });
+    }
+    currentPage = 1;
+    renderTable();
+  }
+
+  function renderTable() {
+    tableBody.innerHTML = "";
+    if (filtered.length === 0) {
+      tableBody.innerHTML =
+        `<tr><td colspan="7" style="text-align:center; padding:10px; color:#9ca3af;">[translate:Нет уведомлений]</td></tr>`;
+      pageInfo.textContent = "0 / 0";
+      return;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const end   = Math.min(start + pageSize, filtered.length);
+    const slice = filtered.slice(start, end);
+
+    slice.forEach(n => {
+      const tr = document.createElement("tr");
+      const sched = n.scheduled_at || n.ScheduledAt || "";
+
+      tr.innerHTML = `
+        <td class="id-mono">${n.id || n.ID || ""}</td>
+        <td>${n.recipient || n.Recipient || ""}</td>
+        <td><span class="tag tag-channel">${n.channel || n.Channel || ""}</span></td>
+        <td class="ellipsis" title="${(n.message || n.Message || "").replace(/"/g, '&quot;')}">${n.message || n.Message || ""}</td>
+        <td>${sched}</td>
+        <td>${statusTag(n.status || n.Status)}</td>
+        <td>${n.tries != null ? n.tries : (n.Tries != null ? n.Tries : "")}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+
+    pageInfo.textContent = `${currentPage} / ${totalPages}`;
+  }
+
+  document.getElementById("prev-page").addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderTable();
+    }
+  });
+
+  document.getElementById("next-page").addEventListener("click", () => {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderTable();
+    }
+  });
+
+  searchInput.addEventListener("input", applyFilter);
+
+  // ===== загрузка всех уведомлений из БД =====
+  async function loadNotifications() {
+    setStatus(listStatus, "[translate:Загрузка уведомлений...]", "info");
+    try {
+      const resp = await fetch(`${API_BASE_URL}/notify`, { method: "GET" });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+
+      if (!resp.ok) {
+        setStatus(listStatus, `HTTP ${resp.status}: ${data && data.error ? data.error : text}`, "err");
+        notifications = [];
+        filtered = [];
+        renderTable();
+        return;
+      }
+
+      if (!Array.isArray(data)) {
+        setStatus(listStatus, "[translate:Некорректный формат ответа /notify, ожидался массив]", "err");
+        notifications = [];
+        filtered = [];
+        renderTable();
+        return;
+      }
+
+      notifications = data;
+      applyFilter();
+      setStatus(listStatus, `[translate:Загружено уведомлений:] ${notifications.length}`, "ok");
+    } catch (err) {
+      notifications = [];
+      filtered = [];
+      renderTable();
+      setStatus(listStatus, "[translate:Ошибка запроса:]" + " " + err, "err");
+    }
+  }
+
+  document.getElementById("refresh-btn").addEventListener("click", loadNotifications);
+
+  // ===== создание уведомления =====
+  document.getElementById("create-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const st = document.getElementById("create-status");
+    setStatus(st, "[translate:Отправка запроса...]", "info");
+
+    const dateStr = document.getElementById("scheduled_date").value;
+    const timeStr = document.getElementById("scheduled_time").value;
+    const isoLocal = timeStr ? `${dateStr}T${timeStr}` : `${dateStr}T00:00`;
+    const localDate = new Date(isoLocal);
+    const scheduledAt = localDate.toISOString();
+
+    const body = {
+      recipient:   document.getElementById("recipient").value,
+      channel:     document.getElementById("channel").value,
+      message:     document.getElementById("message").value,
+      scheduled_at: scheduledAt,
+    };
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+
+      if (!resp.ok) {
+        setStatus(st, `HTTP ${resp.status}: ${data && data.error ? data.error : text}`, "err");
+        return;
+      }
+
+      setStatus(st, "[translate:Уведомление создано]", "ok");
+      // Перезагрузим список
+      await loadNotifications();
+    } catch (err) {
+      setStatus(st, "[translate:Ошибка запроса:]" + " " + err, "err");
+    }
+  });
+
+  // ===== удаление уведомления =====
+  document.getElementById("delete-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const st = document.getElementById("delete-status");
+    setStatus(st, "[translate:Отправка запроса...]", "info");
+
+    const id = encodeURIComponent(document.getElementById("delete-id").value);
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/notify/${id}`, { method: "DELETE" });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+
+      if (!resp.ok) {
+        setStatus(st, `HTTP ${resp.status}: ${data && data.error ? data.error : text}`, "err");
+        return;
+      }
+
+      setStatus(st, "[translate:Уведомление удалено]", "ok");
+      await loadNotifications();
+    } catch (err) {
+      setStatus(st, "[translate:Ошибка запроса:]" + " " + err, "err");
+    }
+  });
+
+  // при первой загрузке страницы — тянем все уведомления
+  window.addEventListener("load", loadNotifications);
+</script>
+</body>
+</html>

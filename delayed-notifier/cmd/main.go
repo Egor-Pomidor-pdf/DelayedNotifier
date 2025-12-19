@@ -29,7 +29,7 @@ func main() {
 	ctx, ctxStop := signal.NotifyContext(ctx, os.Interrupt)
 
 	// init config
-	cfg, err := config.NewConfig("../config/.env", "")
+	cfg, err := config.NewConfig("", "")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func main() {
 	zlog.Logger.Info().Msg("Successfully connected to PostgreSQL")
 
 	// create migrations
-	migrationsPath := "file://./db/migration"
+	migrationsPath := "file:///app/db/migration"
 	err = postgres.MigrateUp(cfg.Database.MasterDSN, migrationsPath)
 	if err != nil {
 		zlog.Logger.Fatal().Err(err).Msg("couldn't migrate postgres on master DSN")
@@ -112,7 +112,8 @@ func main() {
 	}()
 
 	// init redis
-	redisClient := redis.New("localhost:6379", "", 0)
+	addr := fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port)
+	redisClient := redis.New(addr, cfg.Redis.Password, cfg.Redis.DB)
 	redisRepository := repository.NewRedisRepository(redisClient, redisRepoRetryStrategy, time.Hour)
 
 	// inint crud service
@@ -121,8 +122,10 @@ func main() {
 	router := handler.NewRouter(handl)
 
 	// running server
+	zlog.Logger.Info().Msg("server start")
 	httpServer := server.NewHTTPServer(router)
-	err = httpServer.GracefulRun(ctx, "localhost", 8089)
+	err = httpServer.GracefulRun(ctx, cfg.Server.Host, cfg.Server.Port)
+
 	if err != nil {
 		zlog.Logger.Error().
 			Err(err).

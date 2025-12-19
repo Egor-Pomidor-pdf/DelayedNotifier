@@ -17,7 +17,7 @@ func (s *ConsoleSender) Send(ctx context.Context, notification *model.Notificati
 	fmt.Printf(
 		"Sending notification ID=%v to recipient=%s via channel=%s: %s\n",
 		notification.ID,
-		notification.Recipient,
+		notification.Recipient.Val.String(),
 		notification.Channel,
 		notification.Message,
 	)

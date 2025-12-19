@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/config"
@@ -13,63 +14,66 @@ import (
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/repository/receivers"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/repository/senders"
 	"github.com/Egor-Pomidor-pdf/DelayedNotifier/worker/internal/service"
-	"github.com/wb-go/wbf/retry"
-)
-
-const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
+	"github.com/wb-go/wbf/zlog"
 )
 
 func main() {
+	// make context
+	ctx := context.Background()
+	ctx, ctxStop := signal.NotifyContext(ctx, os.Interrupt)
+
 	cfg, err := config.NewConfig("../config/.env", "")
 	fmt.Println(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(cfg.Env)
-	setupLogger(cfg.Env)
+
+	// init logger
+	zlog.InitConsole()
+	err = zlog.SetLevel(cfg.Env)
+	if err != nil {
+		log.Fatal(fmt.Errorf("error setting log level to '%s': %w", cfg.Env, err))
+	}
+	zlog.Logger.Info().
+		Str("env", cfg.Env).
+		Msg("Start app...")
 
 	slog.Info("starting app", slog.String("env", cfg.Env))
-	slog.Debug("debug messages are enabled")
 
-	rabbitmqRetryStrategy := retry.Strategy{
-		Attempts: cfg.RabbitMQRetry.Attempts,
-		Delay:    time.Duration(cfg.RabbitMQRetry.DelayMilliseconds) * time.Millisecond,
-		Backoff:  cfg.RabbitMQRetry.Backoff,
-	}
+	// init strategies
+	consumerRetryStrategy := config.MakeStrategy(cfg.ConsumerRetry)
+	receiverRetryStrategy := config.MakeStrategy(cfg.ReceiverRetry)
 
-	ctx := context.Background()
-
-	consumer, _, err := rabbitconsumer.NewRabbitConsumer(ctx, cfg.RabbitMQ, rabbitmqRetryStrategy)
+	// init consumer
+	consumer, _, err := rabbitconsumer.NewRabbitConsumer(ctx, cfg.RabbitMQ, consumerRetryStrategy)
 	if err != nil {
-		log.Fatal(err)
+		zlog.Logger.Fatal().
+			Err(err).
+			Msg("failed to create rabbit consumer")
 	}
-	receiver := receivers.NewRabbitMQReceiver(consumer, rabbitmqRetryStrategy)
+
+	// init reciver and sender
+	receiver := receivers.NewRabbitMQReceiver(consumer, receiverRetryStrategy)
 	sender := senders.NewConsoleSender()
-	fmt.Println(cfg.CheckPeriod)
+
+	// init duration
 	duration, err := time.ParseDuration(cfg.CheckPeriod)
 	if err != nil {
-		log.Fatalf("invalid check period: %v", err)
+		zlog.Logger.Fatal().
+			Err(err).
+			Str("check_period", cfg.CheckPeriod).
+			Msg("invalid check period")
 	}
+
+	// init notificationService and run
 	notificationService := service.NewNotificationService(receiver, sender, duration)
 	err = notificationService.Run(ctx, cfg.RabbitMQ)
 	if err != nil {
-		log.Fatal(err)
+		zlog.Logger.Fatal().
+			Err(err).
+			Msg("notification service exited with error")
 	}
 
-}
+	ctxStop()
 
-func setupLogger(env string) {
-	var handler slog.Handler
-	switch env {
-	case envLocal:
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	case envDev:
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	case envProd:
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	}
-	slog.SetDefault(slog.New(handler)) // ← Устанавливаем global logger
 }

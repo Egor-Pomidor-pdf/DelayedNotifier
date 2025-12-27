@@ -9,7 +9,7 @@ func NewRouter(notifyHandler *NotifyHandler) *ginext.Engine {
 	router.Use(MetricsMiddleware)
 	router.Use(ginext.Logger())
 	router.Use(ginext.Recovery())
-	router.StaticFile("/", "/app/internal/static/index.html")
+	// router.StaticFile("/", "/app/internal/static/index.html")
 	router.POST("/notify", notifyHandler.CreateNotification)
 	router.GET("/notify", notifyHandler.GetAllNotifications)
 	router.GET("/notify/:id", notifyHandler.GetNotification)

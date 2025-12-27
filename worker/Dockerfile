@@ -9,22 +9,15 @@ RUN go mod download
 COPY . .
 
 # Собираем статический бинарь
-RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/delayed-notifier ./cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/worker ./cmd
 
 # ---- runtime stage ----
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 
-COPY --from=build /bin/delayed-notifier /bin/delayed-notifier
-
-COPY --from=build /app/db/migration /app/db/migration
+COPY --from=build /bin/worker /bin/worker
 
 
-
-
-# если твой сервер слушает 8089
-EXPOSE 8089
-
-ENTRYPOINT ["/bin/delayed-notifier"]
+ENTRYPOINT ["/bin/worker"]
 
 

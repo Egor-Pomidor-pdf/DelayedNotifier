@@ -21,6 +21,26 @@ services:
       - ../config/.env
     ports:
       - "8089:8089"
+    expose:
+      - "8089"
+    networks:
+      - backend
+  worker:
+    build:
+      context: ../worker # путь до папки где Dockerfile и go.mod
+      dockerfile: Dockerfile
+    image: worker:latest
+    restart: unless-stopped
+    # entrypoint: "sleep 1h"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
+    env_file:
+      - ../config/.env
     networks:
       - backend
   postgres_master:
@@ -120,6 +140,20 @@ services:
     volumes:
       - ../logsAndMetrics/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - grafanadata:/var/lib/grafana
+    networks:
+      - backend
+    
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    volumes:
+      - ../nginx/conf.d:/etc/nginx/conf.d
+      - ../nginx/static:/var/static
+    depends_on:
+      delayed_notifier:
+        condition: service_started
     networks:
       - backend
 

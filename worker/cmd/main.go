@@ -22,7 +22,7 @@ func main() {
 	ctx := context.Background()
 	ctx, ctxStop := signal.NotifyContext(ctx, os.Interrupt)
 
-	cfg, err := config.NewConfig("../config/.env", "")
+	cfg, err := config.NewConfig("", "")
 	fmt.Println(cfg)
 	if err != nil {
 		log.Fatal(err)

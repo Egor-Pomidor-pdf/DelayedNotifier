@@ -1,0 +1,57 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  # Образ будет тегироваться коммитом. Можно заменить на :latest для main.
+  IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+
+  # Для docker:dind
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_DRIVER: overlay2
+
+# -------- TEST --------
+test:
+  stage: test
+  image: golang:1.24
+  script:
+    - go test ./...
+
+# -------- BUILD & PUSH --------
+build_and_push:
+  stage: build
+  image: docker:24.0.5-cli
+  services:
+    - name: docker:24.0.5-dind
+      alias: docker
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker build -t "$IMAGE_TAG" .
+    - docker push "$IMAGE_TAG"
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
+# -------- DEPLOY (Kubernetes via GitLab Agent) --------
+deploy_dev:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  variables:
+    # Должна быть задана в настройках проекта GitLab:
+    # KUBE_CONTEXT="path/to/agent-project:agent-name"
+    KUBE_NAMESPACE: "default"
+  script:
+    # Проверим, что контексты доступны и выберем нужный.
+    - kubectl config get-contexts
+    - kubectl config use-context "$KUBE_CONTEXT"
+
+    # Применяем манифесты (ожидается папка k8s/ в репозитории)
+    - kubectl -n "$KUBE_NAMESPACE" apply -f k8s/
+
+    # Обновляем image у деплоймента (замени имена на свои)
+    - kubectl -n "$KUBE_NAMESPACE" set image deployment/delayed-notifier delayed-notifier="$IMAGE_TAG"
+
+    # Ждём rollout
+    - kubectl -n "$KUBE_NAMESPACE" rollout status deployment/delayed-notifier --timeout=120s
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

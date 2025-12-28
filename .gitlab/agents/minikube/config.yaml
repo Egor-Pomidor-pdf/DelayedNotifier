@@ -1,0 +1,3 @@
+ci_access:
+  projects:
+    - id: egortujmukov/L3_DelayedNotifier

@@ -1,0 +1,6 @@
+<<<<<<< HEAD
+=======
+ci_access:
+  projects:
+    - id: egortujmukov/L3_DelayedNotifier
+>>>>>>> 7a0769c (Update file config.yaml)

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: delayed-notifier-deployment
+  namespace: delayed-notifier
+  labels:
+    app: delayed-notifier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: delayed-notifier
+  template:
+    metadata:
+      labels:
+        app: delayed-notifier
+    spec:
+      containers:
+      - name: delayed-notifier
+        image: registry.gitlab.com/egortujmukov4683/delayed-notifier/delayed-notifier:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: delayed-notifier-config
+        - secretRef:
+            name: delayed-notifier-secrets
+        ports:
+        - containerPort: 8089
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: delayed-notifier
+  namespace: delayed-notifier
+spec:
+  type: ClusterIP
+  selector:
+    app: delayed-notifier
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8089

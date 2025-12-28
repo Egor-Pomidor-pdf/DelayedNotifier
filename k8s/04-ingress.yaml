@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress
+  namespace: delayed-notifier
+spec:
+  ingressClassName: "nginx"
+  rules:
+  - host: delayed-notifier.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix  
+        backend:
+          service:
+            name: delayed-notifier
+            port: 
+              number: 80

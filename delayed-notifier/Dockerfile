@@ -19,7 +19,7 @@ COPY --from=build /bin/delayed-notifier /bin/delayed-notifier
 
 COPY --from=build /app/db/migration /app/db/migration
 
-
+COPY internal/static/ /app/internal/static/
 
 
 # если твой сервер слушает 8089

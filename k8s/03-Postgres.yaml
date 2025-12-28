@@ -13,6 +13,10 @@ spec:
       labels:
         app: postgres
     spec:
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:     # ссылаемся на имя PVC
+          claimName: postgres-pvc
       containers:
       - name: postgres
         image: postgres:latest
@@ -23,6 +27,10 @@ spec:
             name: delayed-notifier-config
         - secretRef:
             name: delayed-notifier-secrets
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data  # куда монтировать
+        
         # healthcheck из compose можно приблизить readinessProbe/livenessProbe позже
 ---
 apiVersion: v1
